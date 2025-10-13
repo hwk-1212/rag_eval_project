@@ -14,6 +14,9 @@ from rag_techniques import (
     FusionRAG,
     HyDERAG,
     ContextualCompressionRAG,
+    QueryTransformationRAG,
+    AdaptiveRAG,
+    SelfRAG,
 )
 
 router = APIRouter()
@@ -26,6 +29,9 @@ RAG_TECHNIQUES = {
     "fusion_rag": FusionRAG,
     "hyde_rag": HyDERAG,
     "contextual_compression_rag": ContextualCompressionRAG,
+    "query_transformation_rag": QueryTransformationRAG,
+    "adaptive_rag": AdaptiveRAG,
+    "self_rag": SelfRAG,
 }
 
 
@@ -97,6 +103,7 @@ async def query(
                 )
                 db.add(qa_record)
                 db.commit()
+                db.refresh(qa_record)  # 获取数据库生成的ID
                 
                 # 构建响应
                 result = RagResult(
@@ -113,7 +120,8 @@ async def query(
                     ],
                     retrieval_scores=rag_result.retrieval_scores,
                     execution_time=rag_result.execution_time,
-                    metadata=rag_result.metadata
+                    metadata=rag_result.metadata,
+                    qa_record_id=qa_record.id  # 添加QA记录ID
                 )
                 results.append(result)
                 

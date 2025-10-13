@@ -1,8 +1,25 @@
-# 🤖 RAG评测对比平台
+# 🤖 RAG评测对比平台 V1.2
 
 一个支持多种RAG技术的评测与对比系统，让您能够直观地比较不同RAG方案的效果。
 
-## 📋 项目特性
+## 🌟 最新特性
+
+### V1.3 - 批量自动评估与统计对比 (NEW! 2025-10-13)
+- 🤖 **LLM自动评分**: 6维度智能评分（相关性、忠实度、连贯性、流畅度、简洁性、综合）
+- 📊 **Ragas集成**: 标准化RAG评估指标（Faithfulness、Answer Relevancy，无需标准答案）
+- ⚡ **批量评估**: 一键评估所有选中的RAG技术，实时进度显示
+- 📈 **统计对比**: 详细对比表格 + 可视化图表 + 智能推荐
+- 💾 **自动保存**: 评估结果自动持久化到数据库
+- 🎯 **检索质量评估**: 自动评估检索精确度和上下文相关性
+- ⚙️ **评估配置**: 侧边栏独立配置，支持开关LLM和Ragas评估
+
+### V1.2 - 高级RAG技术
+- ✨ **Query Transformation RAG**: 查询重写、回退提示、子查询分解
+- ✨ **Adaptive RAG**: 智能识别查询类型，自动选择最佳策略
+- ✨ **Self RAG**: 6个反思点质量控制，确保答案可靠性
+- 🎯 **8个RAG技术**: 从基础到高级，全面覆盖主流技术
+
+## 📋 核心特性
 
 - ✅ **多文档支持**: 支持PDF、TXT、MD、DOCX等多种格式
 - ✅ **多RAG技术对比**: 同时运行多个RAG技术，并列展示结果
@@ -11,6 +28,8 @@
 - ✅ **评分系统**: 支持人工多维度评分
 - ✅ **统计分析**: 自动生成各RAG技术的性能对比
 - ✅ **灵活配置**: 可调整检索参数、LLM参数等
+- ✅ **智能路由**: 根据问题类型自动优化策略
+- ✅ **质量保证**: 多重评估确保答案准确性
 
 ## 🏗️ 架构设计
 
@@ -134,36 +153,71 @@ streamlit run frontend/app.py
    - 可选择多个技术同时运行
    - 调整检索参数（top_k、chunk_size等）
 
-3. **提出问题**
+3. **配置评估**（可选）
+   - 在左侧"自动评估配置"中
+   - ☑️ 勾选"查询后自动评估"
+   - ☑️ 勾选"使用Ragas评估"（更标准但更慢）
+
+4. **提出问题**
    - 在中间对话窗口输入问题
    - 系统自动使用选定的RAG技术回答
    - 查看主答案和执行时间
 
-4. **对比结果**
-   - 在右侧面板查看各RAG技术的详细结果
-   - 查看检索到的文档片段和相似度
-   - 对每个结果进行多维度评分
+5. **批量评估**
+   - 在右侧"自动评估"窗口，点击「🚀 批量评估所有RAG技术」
+   - 实时查看评估进度（1/8, 2/8, ...）
+   - 等待评估完成（约1-2分钟）
 
-5. **分析统计**
-   - 查看统计对比图表
-   - 分析各RAG技术的性能差异
+6. **查看对比**
+   - 在"统计对比"窗口查看详细表格
+   - 分析可视化图表：LLM评分、Ragas评分、性能对比
+   - 查看智能推荐的Top 3 RAG技术
+
+7. **深入分析**
+   - 切换标签页查看各RAG技术的详细答案
+   - 查看检索到的文档片段和相似度
+   - 查看LLM和Ragas的详细评分和反馈
 
 ### RAG技术说明
 
-#### Simple RAG（已实现）
-最基础的RAG实现：
-1. 对查询进行向量化
-2. 在向量库中检索相似文档
-3. 将检索结果作为上下文传递给LLM
-4. LLM生成最终答案
+#### 🎯 已实现技术 (V1.2)
 
-#### 后续扩展（规划中）
-- **Reranker RAG**: 使用重排序模型优化检索结果
-- **Fusion RAG**: 结合向量搜索和BM25
-- **Adaptive RAG**: 根据查询类型动态选择策略
+**基础检索增强** (3个)
+- ✅ **Simple RAG**: 最基础的RAG实现
+- ✅ **Reranker RAG**: 使用重排序模型优化检索结果
+- ✅ **Fusion RAG**: 结合向量搜索和BM25关键词检索
+
+**语义增强** (2个)
+- ✅ **HyDE RAG**: 使用假设文档嵌入改善语义匹配
+- ✅ **Contextual Compression**: 压缩和过滤检索上下文
+
+**查询优化** (1个)
+- ✨ **Query Transformation**: 查询重写、回退提示、子查询分解 **(NEW)**
+
+**智能路由** (1个)
+- ✨ **Adaptive RAG**: 根据查询类型自动选择最佳策略 **(NEW)**
+
+**质量控制** (1个)
+- ✨ **Self RAG**: 多重反思点确保答案质量 **(NEW)**
+
+**总计: 8个RAG技术**
+
+#### 🚧 后续扩展（规划中）
+- **Corrective RAG (CRAG)**: 纠错RAG
+- **Agentic RAG**: 智能体RAG
 - **Graph RAG**: 基于知识图谱的检索
-- **Self RAG**: 具有自我反思能力的RAG
+- **Hierarchical Indices**: 层次化索引
+- **Context Enriched RAG**: 上下文增强
 - ...更多技术持续添加中
+
+#### 📚 详细文档
+- 🚀 [批量评估快速上手](BATCH_EVAL_QUICKSTART.md) - 5分钟体验批量评估 **(NEW)**
+- 🤖 [批量评估更新说明](BATCH_AUTO_EVAL_UPDATE.md) - V1.3批量评估功能完整指南 **(NEW)**
+- 🤖 [自动评估指南](AUTO_EVALUATION_GUIDE.md) - 完整评估系统使用说明
+- 📝 [自动评估总结](AUTO_EVALUATION_SUMMARY.md) - 实现细节和架构说明
+- 💡 [新技术使用指南](NEW_TECHNIQUES_GUIDE.md) - 3个高级技术详解
+- 📝 [V1.2更新日志](CHANGELOG_V1.2.md) - 完整变更记录
+- 🚀 [快速启动V1.2](QUICKSTART_V1.2.md) - 5分钟上手新功能
 
 ## 🗂️ 项目结构
 
@@ -269,6 +323,37 @@ Content-Type: application/json
 GET /api/v1/evaluation/stats/comparison
 ```
 
+### 自动评估 (NEW!)
+
+```python
+# 单条自动评估
+POST /api/v1/evaluation/auto
+Content-Type: application/json
+{
+    "qa_record_id": 1,
+    "use_llm_evaluator": true,
+    "use_ragas": false,
+    "reference_answer": null
+}
+
+# 批量自动评估
+POST /api/v1/evaluation/auto/batch
+Content-Type: application/json
+{
+    "qa_record_ids": [1, 2, 3, 4, 5],
+    "use_llm_evaluator": true,
+    "use_ragas": false
+}
+```
+
+**评估维度**:
+- **LLM评估**: 相关性、忠实度、连贯性、流畅度、简洁性
+- **Ragas评估**: Faithfulness、Answer Relevancy、Context Precision/Recall
+- **检索评估**: 检索精确度、上下文相关性
+
+**详细文档**: 参考 [AUTO_EVALUATION_GUIDE.md](AUTO_EVALUATION_GUIDE.md)
+```
+
 ## 🛠️ 开发指南
 
 ### 添加新的RAG技术
@@ -331,13 +416,25 @@ A: 确认后端服务已启动，检查端口是否被占用
 
 ## 📝 TODO List
 
-- [ ] 添加更多RAG技术实现
+**已完成** ✅:
+- [x] LLM自动评分功能 (V1.3)
+- [x] Ragas评估集成 (V1.3)
+- [x] 8个RAG技术实现 (V1.2)
+- [x] 多RAG技术对比
+- [x] 实时问答系统
+
+**进行中** 🔄:
+- [ ] 前端自动评估可视化
+- [ ] 添加更多RAG技术（目标20个）
+
+**计划中** 📋:
 - [ ] 支持多文档联合检索
-- [ ] LLM自动评分功能
-- [ ] 导出评测报告
+- [ ] 导出评测报告（PDF/Excel）
 - [ ] 用户认证系统
-- [ ] Docker部署支持
+- [ ] Docker一键部署
 - [ ] 多模态文档支持
+- [ ] 异步批量评估
+- [ ] 评估结果可视化看板
 
 ## 🤝 贡献指南
 

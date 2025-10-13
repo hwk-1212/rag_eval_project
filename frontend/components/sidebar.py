@@ -84,6 +84,9 @@ def render_sidebar():
         "fusion_rag": "Fusion RAG (混合检索)",
         "hyde_rag": "HyDE RAG (假设文档)",
         "contextual_compression_rag": "Contextual Compression (上下文压缩)",
+        "query_transformation_rag": "Query Transformation (查询转换)",
+        "adaptive_rag": "Adaptive RAG (自适应)",
+        "self_rag": "Self RAG (自我反思)",
     }
     
     st.multiselect(
@@ -117,5 +120,28 @@ def render_sidebar():
         st.session_state.llm_config = {
             "temperature": temperature,
             "max_tokens": max_tokens
+        }
+    
+    # 自动评估配置
+    with st.expander("🤖 自动评估配置", expanded=False):
+        auto_eval_enabled = st.checkbox(
+            "查询后自动评估",
+            value=True,
+            help="完成查询后自动对所有RAG结果进行评估"
+        )
+        
+        use_ragas = st.checkbox(
+            "使用Ragas评估",
+            value=True,
+            help="Ragas提供标准化的RAG评估指标（会增加评估时间）"
+        )
+        
+        st.caption("📊 评估维度")
+        st.caption("• LLM评分: 相关性、忠实度、连贯性、流畅度、简洁性")
+        st.caption("• Ragas: Faithfulness、Answer Relevancy、Context Precision/Recall")
+        
+        st.session_state.eval_config = {
+            "auto_eval_enabled": auto_eval_enabled,
+            "use_ragas": use_ragas
         }
 

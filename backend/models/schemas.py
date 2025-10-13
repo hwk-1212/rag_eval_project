@@ -72,6 +72,7 @@ class RagResult(BaseModel):
     retrieval_scores: List[float]
     execution_time: float
     metadata: Optional[Dict[str, Any]] = {}
+    qa_record_id: Optional[int] = None  # QA记录ID，用于自动评估
 
 
 class QueryResponse(BaseModel):
@@ -98,7 +99,7 @@ class QARecordResponse(BaseModel):
 # ============ 评分相关 ============
 class EvaluationCreate(BaseModel):
     qa_record_id: int
-    score_type: str = "human"  # human/llm/auto
+    score_type: str = "human"  # human/llm/auto/ragas
     accuracy_score: Optional[float] = None
     relevance_score: Optional[float] = None
     fluency_score: Optional[float] = None
@@ -114,6 +115,51 @@ class EvaluationResponse(EvaluationCreate):
     
     class Config:
         from_attributes = True
+
+
+# ============ 自动评估相关 ============
+class AutoEvaluationRequest(BaseModel):
+    """自动评估请求"""
+    qa_record_id: int = Field(..., description="QA记录ID")
+    use_llm_evaluator: bool = Field(default=True, description="是否使用LLM评估器")
+    use_ragas: bool = Field(default=False, description="是否使用Ragas评估")
+    reference_answer: Optional[str] = Field(None, description="参考答案（可选）")
+
+
+class AutoEvaluationResponse(BaseModel):
+    """自动评估响应"""
+    qa_record_id: int
+    evaluation_success: bool
+    
+    # LLM评估结果
+    llm_evaluation: Optional[Dict[str, Any]] = None
+    
+    # Ragas评估结果
+    ragas_evaluation: Optional[Dict[str, Any]] = None
+    
+    # 综合评分
+    final_scores: Dict[str, float]
+    
+    # 错误信息
+    error_message: Optional[str] = None
+    
+    evaluation_time: float
+
+
+class BatchEvaluationRequest(BaseModel):
+    """批量评估请求"""
+    qa_record_ids: List[int] = Field(..., description="QA记录ID列表")
+    use_llm_evaluator: bool = Field(default=True, description="是否使用LLM评估器")
+    use_ragas: bool = Field(default=False, description="是否使用Ragas评估")
+
+
+class BatchEvaluationResponse(BaseModel):
+    """批量评估响应"""
+    total_count: int
+    success_count: int
+    failed_count: int
+    results: List[AutoEvaluationResponse]
+    total_time: float
 
 
 # ============ RAG配置 ============
