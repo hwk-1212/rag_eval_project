@@ -17,6 +17,9 @@ from rag_techniques import (
     QueryTransformationRAG,
     AdaptiveRAG,
     SelfRAG,
+    CRAG,
+    ContextEnrichedRAG,
+    ContextualChunkHeadersRAG,
 )
 
 router = APIRouter()
@@ -32,6 +35,9 @@ RAG_TECHNIQUES = {
     "query_transformation_rag": QueryTransformationRAG,
     "adaptive_rag": AdaptiveRAG,
     "self_rag": SelfRAG,
+    "crag": CRAG,
+    "context_enriched_rag": ContextEnrichedRAG,
+    "contextual_chunk_headers_rag": ContextualChunkHeadersRAG,
 }
 
 

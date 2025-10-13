@@ -163,6 +163,42 @@ class VectorStore:
             logger.error(f"相似度搜索失败: {e}")
             raise
     
+    def get_by_chunk_id(self, chunk_id: str) -> List[Dict[str, Any]]:
+        """
+        根据chunk_id精确查询文档块
+        
+        Args:
+            chunk_id: chunk标识符
+            
+        Returns:
+            匹配的文档列表
+        """
+        try:
+            filter_expr = f'chunk_id == "{chunk_id}"'
+            results = self.client.query(
+                collection_name=self.collection_name,
+                filter=filter_expr,
+                output_fields=["chunk_id", "content", "doc_id", "filename", "chunk_index"],
+                limit=10  # 通常只有一个结果
+            )
+            
+            formatted_results = []
+            for item in results:
+                formatted_results.append({
+                    "chunk_id": item.get("chunk_id", ""),
+                    "content": item.get("content", ""),
+                    "score": 1.0,  # 精确匹配，分数为1
+                    "doc_id": item.get("doc_id", ""),
+                    "filename": item.get("filename", ""),
+                    "chunk_index": item.get("chunk_index", 0),
+                })
+            
+            return formatted_results
+            
+        except Exception as e:
+            logger.error(f"根据chunk_id查询失败: {e}")
+            return []
+    
     def delete_by_doc_id(self, doc_id: str) -> bool:
         """
         根据文档ID删除所有相关的块

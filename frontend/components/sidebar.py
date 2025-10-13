@@ -97,6 +97,9 @@ def render_sidebar():
         "query_transformation_rag": "Query Transformation (查询转换)",
         "adaptive_rag": "Adaptive RAG (自适应)",
         "self_rag": "Self RAG (自我反思)",
+        "crag": "CRAG (纠错)",
+        "context_enriched_rag": "Context Enriched (上下文增强)",
+        "contextual_chunk_headers_rag": "Chunk Headers (头部增强)",
     }
     
     # 使用checkbox形式
@@ -145,6 +148,24 @@ def render_sidebar():
                       value="self_rag" in st.session_state.selected_rag_techniques,
                       key="check_self_rag"):
             selected_techniques.append("self_rag")
+    
+    # 纠错与增强（3个）- V1.4 NEW
+    st.markdown("**纠错与增强** ✨")
+    col5, col6 = st.columns(2)
+    with col5:
+        if st.checkbox(rag_techniques["crag"], 
+                      value="crag" in st.session_state.selected_rag_techniques,
+                      key="check_crag"):
+            selected_techniques.append("crag")
+        if st.checkbox(rag_techniques["context_enriched_rag"], 
+                      value="context_enriched_rag" in st.session_state.selected_rag_techniques,
+                      key="check_context_enriched_rag"):
+            selected_techniques.append("context_enriched_rag")
+    with col6:
+        if st.checkbox(rag_techniques["contextual_chunk_headers_rag"], 
+                      value="contextual_chunk_headers_rag" in st.session_state.selected_rag_techniques,
+                      key="check_contextual_chunk_headers_rag"):
+            selected_techniques.append("contextual_chunk_headers_rag")
     
     st.session_state.selected_rag_techniques = selected_techniques
     

@@ -7,6 +7,9 @@ from .contextual_compression_rag import ContextualCompressionRAG
 from .query_transformation_rag import QueryTransformationRAG
 from .adaptive_rag import AdaptiveRAG
 from .self_rag import SelfRAG
+from .crag import CRAG
+from .context_enriched_rag import ContextEnrichedRAG
+from .contextual_chunk_headers_rag import ContextualChunkHeadersRAG
 
 __all__ = [
     "BaseRAG",
@@ -20,5 +23,8 @@ __all__ = [
     "QueryTransformationRAG",
     "AdaptiveRAG",
     "SelfRAG",
+    "CRAG",
+    "ContextEnrichedRAG",
+    "ContextualChunkHeadersRAG",
 ]
 
