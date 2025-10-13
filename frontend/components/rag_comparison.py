@@ -118,9 +118,20 @@ def render_rag_comparison():
     # ========== 2. 统计对比窗口 ==========
     st.subheader("📈 统计对比")
     
+    # 显示评估配置状态
+    eval_config = st.session_state.get("eval_config", {"auto_eval_enabled": False, "use_ragas": False})
+    col_status1, col_status2 = st.columns(2)
+    with col_status1:
+        llm_status = "✅ 已启用" if True else "❌ 未启用"
+        st.caption(f"LLM评估: {llm_status}")
+    with col_status2:
+        ragas_status = "✅ 已启用" if eval_config.get("use_ragas", False) else "❌ 未启用"
+        st.caption(f"Ragas评估: {ragas_status}")
+    
     # 检查是否有评估结果
     if "eval_results" not in st.session_state or not st.session_state.eval_results:
         st.info("👆 点击上方「批量评估所有RAG技术」按钮查看统计对比")
+        st.warning("💡 提示：如需Ragas评估，请在左侧「自动评估配置」中勾选「使用Ragas评估」，然后重新批量评估")
         return
     
     # 构建对比数据
@@ -225,8 +236,22 @@ def render_rag_comparison():
                     best_faith_tech = df.loc[df["Ragas-Faithfulness"].idxmax(), "RAG技术"]
                     best_faith = df["Ragas-Faithfulness"].max()
                     st.info(f"🎯 Faithfulness最高: **{best_faith_tech}** ({best_faith:.3f})")
+                
+                if "Ragas-Answer_Rel" in df.columns:
+                    best_rel_tech = df.loc[df["Ragas-Answer_Rel"].idxmax(), "RAG技术"]
+                    best_rel = df["Ragas-Answer_Rel"].max()
+                    st.info(f"🎯 Answer Relevancy最高: **{best_rel_tech}** ({best_rel:.3f})")
             else:
-                st.info("未启用Ragas评估")
+                st.warning("📊 未启用Ragas评估")
+                st.info("""
+                    💡 如需启用Ragas标准化评估：
+                    
+                    1. 前往左侧栏「🤖 自动评估配置」
+                    2. ☑️ 勾选「使用Ragas评估」
+                    3. 返回此页面，点击「🚀 批量评估所有RAG技术」
+                    
+                    ⏱️ 注意：Ragas评估会增加评估时间（~5-8秒/RAG）
+                """)
         
         with tab3:
             # 性能对比

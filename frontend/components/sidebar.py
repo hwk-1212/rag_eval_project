@@ -8,6 +8,13 @@ API_BASE_URL = "http://localhost:8000/api/v1"
 def render_sidebar():
     """渲染左侧边栏 - 文件管理和配置"""
     
+    # 初始化eval_config（如果不存在）
+    if "eval_config" not in st.session_state:
+        st.session_state.eval_config = {
+            "auto_eval_enabled": False,  # 默认不自动评估
+            "use_ragas": True  # 默认启用Ragas
+        }
+    
     st.header("📁 文件管理")
     
     # 文件上传
@@ -77,7 +84,10 @@ def render_sidebar():
     # RAG配置
     st.header("⚙️ RAG配置")
     
-    # RAG技术选择
+    # RAG技术选择（改用checkbox）
+    st.subheader("选择RAG技术")
+    st.caption("可选择多个RAG技术进行对比")
+    
     rag_techniques = {
         "simple_rag": "Simple RAG (基础)",
         "reranker_rag": "Reranker RAG (重排序)",
@@ -89,16 +99,60 @@ def render_sidebar():
         "self_rag": "Self RAG (自我反思)",
     }
     
-    st.multiselect(
-        "选择RAG技术",
-        options=list(rag_techniques.keys()),
-        format_func=lambda x: rag_techniques[x],
-        default=st.session_state.selected_rag_techniques,
-        key="rag_tech_selector",
-        help="可选择多个RAG技术进行对比"
-    )
+    # 使用checkbox形式
+    selected_techniques = []
     
-    st.session_state.selected_rag_techniques = st.session_state.rag_tech_selector
+    # 基础检索增强（3个）
+    st.markdown("**基础检索增强**")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.checkbox(rag_techniques["simple_rag"], 
+                      value="simple_rag" in st.session_state.selected_rag_techniques,
+                      key="check_simple_rag"):
+            selected_techniques.append("simple_rag")
+        if st.checkbox(rag_techniques["fusion_rag"], 
+                      value="fusion_rag" in st.session_state.selected_rag_techniques,
+                      key="check_fusion_rag"):
+            selected_techniques.append("fusion_rag")
+    with col2:
+        if st.checkbox(rag_techniques["reranker_rag"], 
+                      value="reranker_rag" in st.session_state.selected_rag_techniques,
+                      key="check_reranker_rag"):
+            selected_techniques.append("reranker_rag")
+        if st.checkbox(rag_techniques["hyde_rag"], 
+                      value="hyde_rag" in st.session_state.selected_rag_techniques,
+                      key="check_hyde_rag"):
+            selected_techniques.append("hyde_rag")
+    
+    # 高级技术（4个）
+    st.markdown("**高级技术**")
+    col3, col4 = st.columns(2)
+    with col3:
+        if st.checkbox(rag_techniques["contextual_compression_rag"], 
+                      value="contextual_compression_rag" in st.session_state.selected_rag_techniques,
+                      key="check_contextual_compression_rag"):
+            selected_techniques.append("contextual_compression_rag")
+        if st.checkbox(rag_techniques["adaptive_rag"], 
+                      value="adaptive_rag" in st.session_state.selected_rag_techniques,
+                      key="check_adaptive_rag"):
+            selected_techniques.append("adaptive_rag")
+    with col4:
+        if st.checkbox(rag_techniques["query_transformation_rag"], 
+                      value="query_transformation_rag" in st.session_state.selected_rag_techniques,
+                      key="check_query_transformation_rag"):
+            selected_techniques.append("query_transformation_rag")
+        if st.checkbox(rag_techniques["self_rag"], 
+                      value="self_rag" in st.session_state.selected_rag_techniques,
+                      key="check_self_rag"):
+            selected_techniques.append("self_rag")
+    
+    st.session_state.selected_rag_techniques = selected_techniques
+    
+    # 显示已选择数量
+    if selected_techniques:
+        st.success(f"✅ 已选择 {len(selected_techniques)} 个RAG技术")
+    else:
+        st.warning("⚠️ 请至少选择一个RAG技术")
     
     # RAG参数
     with st.expander("RAG参数", expanded=False):
@@ -126,22 +180,29 @@ def render_sidebar():
     with st.expander("🤖 自动评估配置", expanded=False):
         auto_eval_enabled = st.checkbox(
             "查询后自动评估",
-            value=True,
+            value=st.session_state.eval_config.get("auto_eval_enabled", False),
             help="完成查询后自动对所有RAG结果进行评估"
         )
         
         use_ragas = st.checkbox(
             "使用Ragas评估",
-            value=True,
+            value=st.session_state.eval_config.get("use_ragas", True),
             help="Ragas提供标准化的RAG评估指标（会增加评估时间）"
         )
         
         st.caption("📊 评估维度")
         st.caption("• LLM评分: 相关性、忠实度、连贯性、流畅度、简洁性")
-        st.caption("• Ragas: Faithfulness、Answer Relevancy、Context Precision/Recall")
+        st.caption("• Ragas: Faithfulness、Answer Relevancy")
         
+        # 更新session_state
         st.session_state.eval_config = {
             "auto_eval_enabled": auto_eval_enabled,
             "use_ragas": use_ragas
         }
+        
+        # 显示当前配置
+        if use_ragas:
+            st.info("✅ Ragas评估已启用（评估时间约5-8秒/RAG）")
+        else:
+            st.warning("⚠️ Ragas评估未启用（仅LLM评估，约2-3秒/RAG）")
 
