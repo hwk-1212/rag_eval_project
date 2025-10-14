@@ -107,6 +107,9 @@ def render_sidebar():
         "hierarchical_rag": "Hierarchical Indices (层次化索引)",
         "doc_augmentation_rag": "Doc Augmentation (文档增强)",
         "semantic_chunking_rag": "Semantic Chunking (语义分块)",
+        "rse_rag": "RSE (相关段落提取)",
+        "chunk_size_selector_rag": "Chunk Size Selector (动态分块)",
+        "proposition_chunking_rag": "Proposition Chunking (命题分块)",
     }
     
     # 使用checkbox形式
@@ -174,7 +177,7 @@ def render_sidebar():
                       key="check_contextual_chunk_headers_rag"):
             selected_techniques.append("contextual_chunk_headers_rag")
     
-    # 优化策略（3个）- V1.5 NEW
+    # 优化策略（3个）- V1.5
     st.markdown("**优化策略** 🚀")
     col7, col8 = st.columns(2)
     with col7:
@@ -191,6 +194,24 @@ def render_sidebar():
                       value="doc_augmentation_rag" in st.session_state.selected_rag_techniques,
                       key="check_doc_augmentation_rag"):
             selected_techniques.append("doc_augmentation_rag")
+    
+    # 精细化策略（3个）- V1.6 NEW
+    st.markdown("**精细化策略** 🎯")
+    col9, col10 = st.columns(2)
+    with col9:
+        if st.checkbox(rag_techniques["rse_rag"], 
+                      value="rse_rag" in st.session_state.selected_rag_techniques,
+                      key="check_rse_rag"):
+            selected_techniques.append("rse_rag")
+        if st.checkbox(rag_techniques["proposition_chunking_rag"], 
+                      value="proposition_chunking_rag" in st.session_state.selected_rag_techniques,
+                      key="check_proposition_chunking_rag"):
+            selected_techniques.append("proposition_chunking_rag")
+    with col10:
+        if st.checkbox(rag_techniques["chunk_size_selector_rag"], 
+                      value="chunk_size_selector_rag" in st.session_state.selected_rag_techniques,
+                      key="check_chunk_size_selector_rag"):
+            selected_techniques.append("chunk_size_selector_rag")
     
     st.session_state.selected_rag_techniques = selected_techniques
     

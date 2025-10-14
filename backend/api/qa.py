@@ -24,6 +24,9 @@ from rag_techniques import (
     HierarchicalRAG,
     DocAugmentationRAG,
     SemanticChunkingRAG,
+    RSERAG,
+    ChunkSizeSelectorRAG,
+    PropositionChunkingRAG,
 )
 
 router = APIRouter()
@@ -45,6 +48,9 @@ RAG_TECHNIQUES = {
     "hierarchical_rag": HierarchicalRAG,
     "doc_augmentation_rag": DocAugmentationRAG,
     "semantic_chunking_rag": SemanticChunkingRAG,
+    "rse_rag": RSERAG,
+    "chunk_size_selector_rag": ChunkSizeSelectorRAG,
+    "proposition_chunking_rag": PropositionChunkingRAG,
 }
 
 
