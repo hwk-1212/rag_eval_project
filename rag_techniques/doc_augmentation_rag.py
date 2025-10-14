@@ -46,7 +46,14 @@ class DocAugmentationRAG(BaseRAG):
         self._log("retrieve_start", f"开始文档增强检索，top_k={top_k}")
         
         # === Step 1: 获取所有文档块 ===
-        all_chunks = self.vector_store.search("", limit=100)
+        try:
+            all_chunks = self.vector_store.similarity_search(
+                query="文档内容",  # 使用通用查询
+                top_k=100
+            )
+        except Exception as e:
+            logger.warning(f"获取文档块失败: {e}")
+            all_chunks = []
         self._log("chunks_loaded", f"加载了 {len(all_chunks)} 个文档块")
         
         # === Step 2: 为每个chunk生成问题（或从缓存读取） ===
@@ -92,8 +99,8 @@ class DocAugmentationRAG(BaseRAG):
         if self.enable_question_cache and chunk_id in self._question_cache:
             return self._question_cache[chunk_id]
         
-        # 生成问题
-        text = chunk.get("text", "")
+        # 生成问题（注意：vector_store返回的字段是content，不是text）
+        text = chunk.get("content", "")
         questions = self._generate_questions(text)
         
         # 缓存
@@ -105,6 +112,12 @@ class DocAugmentationRAG(BaseRAG):
     def _generate_questions(self, text: str) -> List[str]:
         """
         使用LLM为文本块生成相关问题
+        
+        Args:
+            text: 文本内容
+            
+        Returns:
+            生成的问题列表
         """
         if not text or len(text.strip()) < 50:
             return []
@@ -163,7 +176,7 @@ class DocAugmentationRAG(BaseRAG):
         在原始内容中检索
         """
         # 使用向量搜索
-        results = self.vector_store.search(query, limit=10)
+        results = self.vector_store.similarity_search(query=query, top_k=10)
         
         scored_results = []
         for result in results:

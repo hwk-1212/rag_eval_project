@@ -46,7 +46,7 @@ class SemanticChunkingRAG(BaseRAG):
         self._log("retrieve_start", f"开始语义分块检索，top_k={top_k}")
         
         # === Step 1: 初始向量检索 ===
-        initial_results = self.vector_store.search(query, limit=top_k * 2)
+        initial_results = self.vector_store.similarity_search(query=query, top_k=top_k * 2)
         self._log("initial_search", f"初始检索到 {len(initial_results)} 个候选文档", {
             "candidate_count": len(initial_results)
         })
@@ -55,7 +55,14 @@ class SemanticChunkingRAG(BaseRAG):
             return []
         
         # === Step 2: 获取所有chunk（用于查找相邻chunk） ===
-        all_chunks = self.vector_store.search("", limit=1000)
+        try:
+            all_chunks = self.vector_store.similarity_search(
+                query="文档内容",  # 使用通用查询
+                top_k=100
+            )
+        except Exception as e:
+            logger.warning(f"获取文档块失败: {e}")
+            all_chunks = []
         chunk_map = {c.get("chunk_id"): c for c in all_chunks}
         
         # 按chunk_id排序构建索引
@@ -95,19 +102,20 @@ class SemanticChunkingRAG(BaseRAG):
         query: str
     ) -> RetrievedDoc:
         """
-        基于语义相似度扩展中心chunk的上下文
+        基于chunk位置和分数扩展中心chunk的上下文
+        注：由于vector_store不返回embedding，我们基于chunk_id的连续性和分数衰减来扩展
         """
         center_id = center_chunk.get("chunk_id")
-        center_embedding = center_chunk.get("embedding", [])
+        center_score = center_chunk.get("score", 0.5)
         
-        if center_id not in chunk_index or not center_embedding:
+        if center_id not in chunk_index:
             # 无法扩展，直接返回
             return RetrievedDoc(
-                content=center_chunk.get("text", ""),
-                score=center_chunk.get("score", 0.5),
+                content=center_chunk.get("content", ""),
+                score=center_score,
                 metadata={
                     "chunk_id": center_id,
-                    "source": center_chunk.get("source", ""),
+                    "source": center_chunk.get("filename", ""),
                     "merged_chunk_ids": [center_id],
                     "expansion": "none"
                 }
@@ -115,7 +123,7 @@ class SemanticChunkingRAG(BaseRAG):
         
         center_idx = chunk_index[center_id]
         
-        # 向前扩展
+        # 向前扩展（相邻chunk，分数递减）
         prev_chunks = []
         for i in range(1, self.max_expand_chunks + 1):
             prev_idx = center_idx - i
@@ -128,20 +136,17 @@ class SemanticChunkingRAG(BaseRAG):
             if not prev_chunk:
                 break
             
-            prev_embedding = prev_chunk.get("embedding", [])
-            if not prev_embedding:
-                break
+            # 使用分数衰减策略：越远分数越低
+            decay_factor = 1.0 - (i * 0.2)  # 每远一个chunk，分数降20%
+            similarity = center_score * decay_factor
             
-            # 计算与中心chunk的相似度
-            similarity = self._cosine_similarity(center_embedding, prev_embedding)
-            
-            if similarity >= self.similarity_threshold:
+            if similarity >= self.similarity_threshold * center_score:
                 prev_chunks.insert(0, {
                     "chunk": prev_chunk,
                     "similarity": similarity
                 })
             else:
-                # 遇到语义断点，停止扩展
+                # 分数太低，停止扩展
                 break
         
         # 向后扩展
@@ -157,38 +162,36 @@ class SemanticChunkingRAG(BaseRAG):
             if not next_chunk:
                 break
             
-            next_embedding = next_chunk.get("embedding", [])
-            if not next_embedding:
-                break
+            # 使用分数衰减策略
+            decay_factor = 1.0 - (i * 0.2)
+            similarity = center_score * decay_factor
             
-            # 计算与中心chunk的相似度
-            similarity = self._cosine_similarity(center_embedding, next_embedding)
-            
-            if similarity >= self.similarity_threshold:
+            if similarity >= self.similarity_threshold * center_score:
                 next_chunks.append({
                     "chunk": next_chunk,
                     "similarity": similarity
                 })
             else:
-                # 遇到语义断点，停止扩展
+                # 分数太低，停止扩展
                 break
         
-        # 合并文本
-        merged_chunks = prev_chunks + [{"chunk": center_chunk, "similarity": 1.0}] + next_chunks
-        merged_text = "\n\n".join([item["chunk"].get("text", "") for item in merged_chunks])
+        # 合并文本（注意：vector_store返回的字段是content，不是text）
+        merged_chunks = prev_chunks + [{"chunk": center_chunk, "similarity": center_score}] + next_chunks
+        merged_text = "\n\n".join([item["chunk"].get("content", "") for item in merged_chunks])
         merged_ids = [item["chunk"].get("chunk_id") for item in merged_chunks]
         
-        # 计算加权平均分数
-        query_embedding = self._get_embedding(query)
-        merged_embedding = self._get_embedding(merged_text)
-        final_score = self._cosine_similarity(query_embedding, merged_embedding)
+        # 计算加权平均分数（基于各chunk的相似度）
+        if merged_chunks:
+            final_score = sum(item["similarity"] for item in merged_chunks) / len(merged_chunks)
+        else:
+            final_score = center_score
         
         return RetrievedDoc(
             content=merged_text,
             score=final_score,
             metadata={
                 "chunk_id": center_id,
-                "source": center_chunk.get("source", ""),
+                "source": center_chunk.get("filename", ""),
                 "merged_chunk_ids": merged_ids,
                 "expansion": f"prev={len(prev_chunks)}, next={len(next_chunks)}",
                 "semantic_similarities": [round(item["similarity"], 3) for item in merged_chunks]

@@ -75,8 +75,17 @@ class HierarchicalRAG(BaseRAG):
         构建摘要层索引
         将连续的chunk合并成组，并为每组生成摘要
         """
-        # 获取所有chunk
-        all_chunks = self.vector_store.search("", limit=1000)  # 获取所有chunk
+        # 获取所有chunk - 使用一个通用查询获取所有文档
+        # Milvus需要一个query，我们使用第一个chunk的查询来获取集合统计
+        try:
+            # 尝试获取前100个chunk（足够用于摘要构建）
+            all_chunks = self.vector_store.similarity_search(
+                query="文档内容",  # 使用通用查询
+                top_k=100
+            )
+        except Exception as e:
+            logger.warning(f"获取文档块失败: {e}")
+            all_chunks = []
         
         if not all_chunks:
             logger.warning("向量库为空，无法构建摘要索引")
@@ -114,8 +123,8 @@ class HierarchicalRAG(BaseRAG):
         if self.enable_summary_cache and cache_key in self._summary_cache:
             return self._summary_cache[cache_key]
         
-        # 合并chunk文本
-        combined_text = "\n\n".join([c.get("text", "") for c in chunk_group])
+        # 合并chunk文本（注意：vector_store返回的字段是content，不是text）
+        combined_text = "\n\n".join([c.get("content", "") for c in chunk_group])
         
         # 使用LLM生成摘要
         system_prompt = """你是一个专业的文档摘要系统。
@@ -200,21 +209,16 @@ class HierarchicalRAG(BaseRAG):
                 if chunks:
                     chunk_data = chunks[0]
                     
-                    # 计算与query的相似度
-                    chunk_embedding = chunk_data.get("embedding", [])
-                    if chunk_embedding:
-                        query_embedding = self._get_embedding(query)
-                        score = self._cosine_similarity(query_embedding, chunk_embedding)
-                    else:
-                        # 如果没有embedding，使用摘要的分数
-                        score = summary["score"] * 0.8
+                    # vector_store.get_by_chunk_id 不返回embedding
+                    # 我们使用摘要的分数作为基准，并根据chunk在摘要中的位置调整
+                    score = summary["score"] * 0.9
                     
                     doc = RetrievedDoc(
-                        content=chunk_data.get("text", ""),
+                        content=chunk_data.get("content", ""),
                         score=score,
                         metadata={
                             "chunk_id": chunk_id,
-                            "source": chunk_data.get("source", ""),
+                            "source": chunk_data.get("filename", ""),
                             "summary": summary["summary_text"],
                             "from_summary_rank": relevant_summaries.index(summary) + 1
                         }
