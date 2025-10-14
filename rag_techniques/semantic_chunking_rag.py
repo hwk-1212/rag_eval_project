@@ -112,10 +112,10 @@ class SemanticChunkingRAG(BaseRAG):
         if center_id not in chunk_index:
             # 无法扩展，直接返回
             return RetrievedDoc(
+                chunk_id=center_id,
                 content=center_chunk.get("content", ""),
                 score=center_score,
                 metadata={
-                    "chunk_id": center_id,
                     "source": center_chunk.get("filename", ""),
                     "merged_chunk_ids": [center_id],
                     "expansion": "none"
@@ -188,10 +188,10 @@ class SemanticChunkingRAG(BaseRAG):
             final_score = center_score
         
         return RetrievedDoc(
+            chunk_id=center_id,
             content=merged_text,
             score=final_score,
             metadata={
-                "chunk_id": center_id,
                 "source": center_chunk.get("filename", ""),
                 "merged_chunk_ids": merged_ids,
                 "expansion": f"prev={len(prev_chunks)}, next={len(next_chunks)}",

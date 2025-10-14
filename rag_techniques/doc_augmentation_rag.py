@@ -271,11 +271,11 @@ class DocAugmentationRAG(BaseRAG):
             total_score = data["content_score"] + data["question_score"]
             
             doc = RetrievedDoc(
-                content=data["chunk"].get("text", ""),
+                chunk_id=chunk_id,
+                content=data["chunk"].get("content", ""),
                 score=total_score,
                 metadata={
-                    "chunk_id": chunk_id,
-                    "source": data["chunk"].get("source", ""),
+                    "source": data["chunk"].get("filename", ""),
                     "content_score": round(data["content_score"], 3),
                     "question_score": round(data["question_score"], 3),
                     "matched_question": data["matched_question"]

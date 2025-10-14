@@ -213,10 +213,10 @@ class HierarchicalRAG(BaseRAG):
                     score = summary["score"] * 0.9
                     
                     doc = RetrievedDoc(
+                        chunk_id=chunk_id,
                         content=chunk_data.get("content", ""),
                         score=score,
                         metadata={
-                            "chunk_id": chunk_id,
                             "source": chunk_data.get("filename", ""),
                             "summary": summary["summary_text"],
                             "from_summary_rank": relevant_summaries.index(summary) + 1
