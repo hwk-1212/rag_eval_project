@@ -21,6 +21,9 @@ from rag_techniques import (
     CRAG,
     ContextEnrichedRAG,
     ContextualChunkHeadersRAG,
+    HierarchicalRAG,
+    DocAugmentationRAG,
+    SemanticChunkingRAG,
 )
 
 router = APIRouter()
@@ -39,6 +42,9 @@ RAG_TECHNIQUES = {
     "crag": CRAG,
     "context_enriched_rag": ContextEnrichedRAG,
     "contextual_chunk_headers_rag": ContextualChunkHeadersRAG,
+    "hierarchical_rag": HierarchicalRAG,
+    "doc_augmentation_rag": DocAugmentationRAG,
+    "semantic_chunking_rag": SemanticChunkingRAG,
 }
 
 

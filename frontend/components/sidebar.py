@@ -104,6 +104,9 @@ def render_sidebar():
         "crag": "CRAG (纠错)",
         "context_enriched_rag": "Context Enriched (上下文增强)",
         "contextual_chunk_headers_rag": "Chunk Headers (头部增强)",
+        "hierarchical_rag": "Hierarchical Indices (层次化索引)",
+        "doc_augmentation_rag": "Doc Augmentation (文档增强)",
+        "semantic_chunking_rag": "Semantic Chunking (语义分块)",
     }
     
     # 使用checkbox形式
@@ -153,7 +156,7 @@ def render_sidebar():
                       key="check_self_rag"):
             selected_techniques.append("self_rag")
     
-    # 纠错与增强（3个）- V1.4 NEW
+    # 纠错与增强（3个）- V1.4
     st.markdown("**纠错与增强** ✨")
     col5, col6 = st.columns(2)
     with col5:
@@ -170,6 +173,24 @@ def render_sidebar():
                       value="contextual_chunk_headers_rag" in st.session_state.selected_rag_techniques,
                       key="check_contextual_chunk_headers_rag"):
             selected_techniques.append("contextual_chunk_headers_rag")
+    
+    # 优化策略（3个）- V1.5 NEW
+    st.markdown("**优化策略** 🚀")
+    col7, col8 = st.columns(2)
+    with col7:
+        if st.checkbox(rag_techniques["hierarchical_rag"], 
+                      value="hierarchical_rag" in st.session_state.selected_rag_techniques,
+                      key="check_hierarchical_rag"):
+            selected_techniques.append("hierarchical_rag")
+        if st.checkbox(rag_techniques["semantic_chunking_rag"], 
+                      value="semantic_chunking_rag" in st.session_state.selected_rag_techniques,
+                      key="check_semantic_chunking_rag"):
+            selected_techniques.append("semantic_chunking_rag")
+    with col8:
+        if st.checkbox(rag_techniques["doc_augmentation_rag"], 
+                      value="doc_augmentation_rag" in st.session_state.selected_rag_techniques,
+                      key="check_doc_augmentation_rag"):
+            selected_techniques.append("doc_augmentation_rag")
     
     st.session_state.selected_rag_techniques = selected_techniques
     

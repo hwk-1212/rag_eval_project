@@ -10,6 +10,9 @@ from .self_rag import SelfRAG
 from .crag import CRAG
 from .context_enriched_rag import ContextEnrichedRAG
 from .contextual_chunk_headers_rag import ContextualChunkHeadersRAG
+from .hierarchical_rag import HierarchicalRAG
+from .doc_augmentation_rag import DocAugmentationRAG
+from .semantic_chunking_rag import SemanticChunkingRAG
 
 __all__ = [
     "BaseRAG",
@@ -26,5 +29,8 @@ __all__ = [
     "CRAG",
     "ContextEnrichedRAG",
     "ContextualChunkHeadersRAG",
+    "HierarchicalRAG",
+    "DocAugmentationRAG",
+    "SemanticChunkingRAG",
 ]
 
