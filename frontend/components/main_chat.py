@@ -56,13 +56,17 @@ def render_main_chat():
             with st.spinner("正在思考..."):
                 try:
                     # 准备请求
+                    rag_config = st.session_state.get("rag_config", {})
+                    # 添加并发数到RAG配置中
+                    rag_config["concurrent_num"] = st.session_state.get("concurrent_num", 3)
+                    
                     payload = {
                         "query": query,
                         "document_ids": st.session_state.selected_documents,
                         "rag_techniques": st.session_state.selected_rag_techniques,
                         "session_id": st.session_state.current_session_id,
                         "llm_config": st.session_state.get("llm_config", {}),
-                        "rag_config": st.session_state.get("rag_config", {})
+                        "rag_config": rag_config
                     }
                     
                     response = requests.post(

@@ -63,6 +63,48 @@ def render_rag_comparison():
                 else:
                     st.caption("⏳ 未评估")
             
+            # RAG执行日志
+            if result.get("metadata", {}).get("execution_logs"):
+                with st.expander("📋 执行日志", expanded=False):
+                    logs = result["metadata"]["execution_logs"]
+                    
+                    # 显示时间统计
+                    timing = result["metadata"].get("timing", {})
+                    if timing:
+                        col_time1, col_time2, col_time3 = st.columns(3)
+                        with col_time1:
+                            st.metric("总耗时", f"{timing.get('total', 0):.3f}s")
+                        with col_time2:
+                            st.metric("检索", f"{timing.get('retrieve', 0):.3f}s")
+                        with col_time3:
+                            st.metric("生成", f"{timing.get('generate', 0):.3f}s")
+                        st.markdown("---")
+                    
+                    # 显示详细日志
+                    for log in logs:
+                        timestamp = log["timestamp"].split("T")[1].split(".")[0]  # 只显示时间
+                        step = log["step"]
+                        message = log["message"]
+                        details = log.get("details", {})
+                        
+                        # 根据步骤类型选择图标
+                        icon_map = {
+                            "init": "🚀",
+                            "retrieve_start": "🔍",
+                            "retrieve_end": "✅",
+                            "generate_start": "💭",
+                            "generate_end": "✅",
+                            "complete": "🎉"
+                        }
+                        icon = icon_map.get(step, "•")
+                        
+                        st.markdown(f"{icon} `{timestamp}` **{step}**: {message}")
+                        
+                        # 显示详细信息
+                        if details and step in ["retrieve_end", "generate_end", "complete"]:
+                            details_text = " | ".join([f"{k}: {v}" for k, v in details.items()])
+                            st.caption(f"    └─ {details_text}")
+            
             # 检索文档
             with st.expander(f"🔍 检索到的文档 ({len(result['retrieved_docs'])}个)", expanded=False):
                 for j, doc in enumerate(result["retrieved_docs"][:5]):  # 最多显示5个
