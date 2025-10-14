@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 API_BASE_URL = "http://localhost:8000/api/v1"
 
@@ -290,71 +291,117 @@ def render_rag_comparison():
 
 
 def batch_evaluate_all():
-    """批量评估所有RAG技术"""
+    """批量评估所有RAG技术（并发版本）"""
     
     eval_config = st.session_state.get("eval_config", {"auto_eval_enabled": True, "use_ragas": False})
     use_ragas = eval_config.get("use_ragas", False)
+    concurrent_num = st.session_state.get("concurrent_num", 3)  # 获取并发数
     
     # 收集所有qa_record_id
-    qa_record_ids = []
-    for result in st.session_state.rag_results:
+    evaluation_tasks = []
+    for i, result in enumerate(st.session_state.rag_results):
         if result.get("qa_record_id"):
-            qa_record_ids.append(result["qa_record_id"])
+            evaluation_tasks.append({
+                "index": i,
+                "qa_id": result["qa_record_id"],
+                "technique": result["rag_technique"]
+            })
     
-    if not qa_record_ids:
+    if not evaluation_tasks:
         st.error("无法获取QA记录ID，请重新查询")
         return
     
     # 显示进度
     progress_bar = st.progress(0)
     status_text = st.empty()
+    status_text.text(f"🚀 开始并发评估 {len(evaluation_tasks)} 个RAG技术 (并发数: {concurrent_num})")
     
     try:
         # 初始化评估结果
         if "eval_results" not in st.session_state:
             st.session_state.eval_results = {}
         
-        # 逐个评估
-        for i, qa_id in enumerate(qa_record_ids):
-            status_text.text(f"正在评估 {i+1}/{len(qa_record_ids)}: {st.session_state.rag_results[i]['rag_technique']}")
-            
-            try:
-                response = requests.post(
-                    f"{API_BASE_URL}/evaluation/auto",
-                    json={
-                        "qa_record_id": qa_id,
-                        "use_llm_evaluator": True,
-                        "use_ragas": use_ragas,
-                        "reference_answer": None
-                    },
-                    timeout=120
-                )
-                
-                if response.status_code == 200:
-                    eval_result = response.json()
-                    if eval_result.get("evaluation_success"):
-                        st.session_state.eval_results[i] = eval_result
-                    else:
-                        st.warning(f"评估失败: {st.session_state.rag_results[i]['rag_technique']}")
-                else:
-                    st.warning(f"API错误: {response.status_code}")
-                    
-            except Exception as e:
-                st.warning(f"评估出错: {str(e)}")
-            
-            # 更新进度
-            progress_bar.progress((i + 1) / len(qa_record_ids))
-            time.sleep(0.5)  # 避免请求过快
+        completed_count = 0
+        success_count = 0
         
-        status_text.text("✅ 评估完成!")
-        time.sleep(1)
+        # 使用线程池并发执行评估
+        with ThreadPoolExecutor(max_workers=concurrent_num) as executor:
+            # 提交所有任务
+            future_to_task = {
+                executor.submit(
+                    evaluate_single_rag,
+                    task["qa_id"],
+                    use_ragas
+                ): task
+                for task in evaluation_tasks
+            }
+            
+            # 处理完成的任务
+            for future in as_completed(future_to_task):
+                task = future_to_task[future]
+                completed_count += 1
+                
+                try:
+                    eval_result = future.result()
+                    
+                    if eval_result and eval_result.get("evaluation_success"):
+                        st.session_state.eval_results[task["index"]] = eval_result
+                        success_count += 1
+                        status_text.text(f"✅ [{completed_count}/{len(evaluation_tasks)}] {task['technique']} 评估完成")
+                    else:
+                        status_text.text(f"⚠️ [{completed_count}/{len(evaluation_tasks)}] {task['technique']} 评估失败")
+                        
+                except Exception as e:
+                    status_text.text(f"❌ [{completed_count}/{len(evaluation_tasks)}] {task['technique']} 评估出错: {str(e)}")
+                
+                # 更新进度
+                progress_bar.progress(completed_count / len(evaluation_tasks))
+        
+        # 完成提示
+        status_text.text(f"✅ 评估完成! 成功: {success_count}/{len(evaluation_tasks)}")
+        time.sleep(1.5)
         status_text.empty()
         progress_bar.empty()
         
-        st.success(f"✅ 成功评估 {len(st.session_state.eval_results)}/{len(qa_record_ids)} 个RAG技术")
+        st.success(f"✅ 成功评估 {success_count}/{len(evaluation_tasks)} 个RAG技术 (并发数: {concurrent_num})")
         st.rerun()
         
     except Exception as e:
         st.error(f"批量评估失败: {str(e)}")
         progress_bar.empty()
         status_text.empty()
+
+
+def evaluate_single_rag(qa_id: int, use_ragas: bool, timeout: int = 180):
+    """
+    评估单个RAG技术（用于并发）
+    
+    Args:
+        qa_id: QA记录ID
+        use_ragas: 是否使用Ragas评估
+        timeout: 超时时间（秒）
+        
+    Returns:
+        评估结果字典
+    """
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/evaluation/auto",
+            json={
+                "qa_record_id": qa_id,
+                "use_llm_evaluator": True,
+                "use_ragas": use_ragas,
+                "reference_answer": None
+            },
+            timeout=timeout  # 增加超时时间到3分钟
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"evaluation_success": False, "error": f"HTTP {response.status_code}"}
+            
+    except requests.exceptions.Timeout:
+        return {"evaluation_success": False, "error": "请求超时"}
+    except Exception as e:
+        return {"evaluation_success": False, "error": str(e)}

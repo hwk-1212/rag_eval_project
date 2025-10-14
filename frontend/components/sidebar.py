@@ -15,6 +15,10 @@ def render_sidebar():
             "use_ragas": True  # 默认启用Ragas
         }
     
+    # 初始化并发数（如果不存在）
+    if "concurrent_num" not in st.session_state:
+        st.session_state.concurrent_num = 3
+    
     st.header("📁 文件管理")
     
     # 文件上传
@@ -174,6 +178,18 @@ def render_sidebar():
         st.success(f"✅ 已选择 {len(selected_techniques)} 个RAG技术")
     else:
         st.warning("⚠️ 请至少选择一个RAG技术")
+    
+    # 并发设置
+    st.markdown("**⚡ 并发设置**")
+    concurrent_num = st.slider(
+        "查询并发数",
+        min_value=1,
+        max_value=10,
+        value=3,
+        help="同时执行多个RAG查询，提升速度。建议3-5"
+    )
+    st.session_state.concurrent_num = concurrent_num
+    st.caption(f"💡 当前设置: 最多同时执行{concurrent_num}个RAG查询")
     
     # RAG参数
     with st.expander("RAG参数", expanded=False):
