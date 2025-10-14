@@ -16,6 +16,8 @@ Document Augmentation RAG - 文档增强RAG
 from typing import List, Dict, Any, Optional
 import re
 from .base import BaseRAG, RetrievedDoc, RagResult
+from backend.utils.llm import call_llm, generate_rag_answer
+from backend.utils.embedding import get_single_embedding
 from loguru import logger
 
 
@@ -145,14 +147,11 @@ class DocAugmentationRAG(BaseRAG):
                 {"role": "user", "content": user_prompt}
             ]
             
-            response = self.llm_client.chat.completions.create(
-                model=self.llm_model,
+            questions_text = call_llm(
                 messages=messages,
                 temperature=0.7,
                 max_tokens=500
             )
-            
-            questions_text = response.choices[0].message.content.strip()
             
             # 解析问题（使用正则表达式）
             pattern = r'^\d+\.\s*(.+)$'
@@ -292,11 +291,7 @@ class DocAugmentationRAG(BaseRAG):
     def _get_embedding(self, text: str) -> List[float]:
         """获取文本的embedding"""
         try:
-            response = self.llm_client.embeddings.create(
-                model=self.embedding_model,
-                input=text
-            )
-            return response.data[0].embedding
+            return get_single_embedding(text)
         except Exception as e:
             logger.error(f"生成embedding失败: {e}")
             return []
@@ -353,19 +348,13 @@ class DocAugmentationRAG(BaseRAG):
         user_prompt = f"上下文信息：\n{context}\n\n用户问题：{query}\n\n请回答："
         
         try:
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            
-            response = self.llm_client.chat.completions.create(
-                model=self.llm_model,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=2000
+            # 使用通用的RAG答案生成函数
+            context = [doc.content for doc in retrieved_docs]
+            answer = generate_rag_answer(
+                query=query,
+                context=context,
+                system_prompt=system_prompt
             )
-            
-            answer = response.choices[0].message.content.strip()
             self._log("generate_end", f"答案生成完成，长度={len(answer)}")
             return answer
             

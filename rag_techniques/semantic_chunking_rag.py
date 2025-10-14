@@ -18,6 +18,7 @@ Semantic Chunking RAG - 语义分块RAG
 from typing import List, Dict, Any, Optional
 import numpy as np
 from .base import BaseRAG, RetrievedDoc, RagResult
+from backend.utils.llm import generate_rag_answer
 from loguru import logger
 
 
@@ -243,18 +244,6 @@ class SemanticChunkingRAG(BaseRAG):
         
         return float(np.dot(v1, v2) / (norm1 * norm2))
     
-    def _get_embedding(self, text: str) -> List[float]:
-        """获取文本的embedding"""
-        try:
-            response = self.llm_client.embeddings.create(
-                model=self.embedding_model,
-                input=text
-            )
-            return response.data[0].embedding
-        except Exception as e:
-            logger.error(f"生成embedding失败: {e}")
-            return []
-    
     def _compute_breakpoints(self, similarities: List[float], method: str = "percentile", threshold: float = 70) -> List[int]:
         """
         根据相似度下降计算分块的断点
@@ -318,19 +307,13 @@ class SemanticChunkingRAG(BaseRAG):
         user_prompt = f"上下文信息：\n{context}\n\n用户问题：{query}\n\n请回答："
         
         try:
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            
-            response = self.llm_client.chat.completions.create(
-                model=self.llm_model,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=2000
+            # 使用通用的RAG答案生成函数
+            context = [doc.content for doc in retrieved_docs]
+            answer = generate_rag_answer(
+                query=query,
+                context=context,
+                system_prompt=system_prompt
             )
-            
-            answer = response.choices[0].message.content.strip()
             self._log("generate_end", f"答案生成完成，长度={len(answer)}")
             return answer
             
