@@ -147,10 +147,11 @@ def batch_evaluate_all():
 
 def evaluate_single_rag(index: int, result: dict, use_ragas: bool) -> dict:
     """评估单个RAG技术"""
-    qa_record_id = result.get("metadata", {}).get("qa_record_id")
+    # qa_record_id是result的直接字段，不在metadata中
+    qa_record_id = result.get("qa_record_id")
     
     if not qa_record_id:
-        return {"evaluation_success": False, "error": "缺少qa_record_id"}
+        return {"evaluation_success": False, "error": f"缺少qa_record_id，result keys: {list(result.keys())}"}
     
     try:
         response = requests.post(
