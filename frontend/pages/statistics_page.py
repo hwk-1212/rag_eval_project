@@ -200,11 +200,12 @@ def load_evaluations_from_db():
                     if auto_evals:
                         latest_eval = auto_evals[-1]  # 最新的评估
                         
-                        # 构造eval_result格式
+                        # 初始化eval_results字典
                         if "eval_results" not in st.session_state:
                             st.session_state.eval_results = {}
                         
-                        st.session_state.eval_results[i] = {
+                        # 构造eval_result格式
+                        eval_result = {
                             "evaluation_success": True,
                             "llm_evaluation": {
                                 "overall_score": latest_eval.get("overall_score", 0),
@@ -215,6 +216,19 @@ def load_evaluations_from_db():
                                 "conciseness_score": latest_eval.get("conciseness_score", 0),
                             }
                         }
+                        
+                        # 从metadata中提取Ragas评分
+                        metadata = latest_eval.get("meta_data") or latest_eval.get("metadata", {})
+                        if metadata and "ragas_scores" in metadata:
+                            ragas_scores = metadata["ragas_scores"]
+                            eval_result["ragas_evaluation"] = {
+                                "faithfulness": ragas_scores.get("faithfulness", 0),
+                                "answer_relevancy": ragas_scores.get("answer_relevancy", 0),
+                                "context_precision": ragas_scores.get("context_precision", 0),
+                                "context_recall": ragas_scores.get("context_recall", 0),
+                            }
+                        
+                        st.session_state.eval_results[i] = eval_result
     except Exception as e:
         logger.warning(f"从数据库加载评估数据失败: {e}")
 

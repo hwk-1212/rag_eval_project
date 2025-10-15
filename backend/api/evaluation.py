@@ -204,6 +204,22 @@ async def auto_evaluate(
         
         # 3. 保存评估结果到数据库
         if final_scores:
+            # 构建metadata，包含Ragas评分
+            metadata = {
+                "llm_evaluation": llm_evaluation if llm_evaluation else {},
+                "ragas_evaluation": ragas_evaluation if ragas_evaluation else {},
+            }
+            
+            # 添加Ragas详细评分到metadata
+            if ragas_evaluation and ragas_evaluation.get("evaluation_success"):
+                ragas_scores = ragas_evaluation.get("scores", {})
+                metadata["ragas_scores"] = {
+                    "faithfulness": ragas_scores.get("faithfulness", 0.0),  # 答案-上下文关系
+                    "answer_relevancy": ragas_scores.get("answer_relevancy", 0.0),  # 答案-问题关系
+                    "context_precision": ragas_scores.get("context_precision", 0.0),  # 问题-上下文关系
+                    "context_recall": ragas_scores.get("context_recall", 0.0),  # 问题-上下文关系
+                }
+            
             evaluation = DBEvaluation(
                 qa_record_id=request.qa_record_id,
                 score_type="auto",
@@ -217,11 +233,14 @@ async def auto_evaluate(
                 completeness_score=final_scores.get("ragas_context_recall"),
                 overall_score=final_scores.get("overall_score"),
                 comments=llm_evaluation.get("feedback", "") if llm_evaluation else "",
-                evaluator="AutoEvaluator"
+                evaluator="AutoEvaluator",
+                meta_data=metadata  # 保存完整的评估数据
             )
             db.add(evaluation)
             db.commit()
             logger.info(f"[AutoEval] 评估结果已保存到数据库，overall_score={final_scores.get('overall_score')}")
+            if metadata.get("ragas_scores"):
+                logger.info(f"[AutoEval] Ragas评分: {metadata['ragas_scores']}")
         
         elapsed_time = time.time() - start_time
         
