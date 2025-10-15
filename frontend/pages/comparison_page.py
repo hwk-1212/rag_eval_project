@@ -70,47 +70,98 @@ def render_rag_comparison_area():
     
     for i, (tab, result) in enumerate(zip(tabs, st.session_state.rag_results)):
         with tab:
-            # ========== 中间：答案展现 + 文档&日志 ==========
-            col_answer, col_docs = st.columns([6, 4])
+            # ========== 上部：答案展现（左）+ 文档&日志（右）==========
+            col_left, col_right = st.columns([6, 4])
             
-            # 左侧：答案展现
-            with col_answer:
+            with col_left:
+                # 答案展现
                 st.markdown("#### 📝 答案")
-                answer_container = st.container(height=350)
+                answer_container = st.container(height=500)  # 加长答案区域
                 with answer_container:
                     st.markdown(result["answer"])
+                
+                st.markdown("---")
+                
+                # 当前问题
+                if st.session_state.messages:
+                    last_user_msg = next(
+                        (m for m in reversed(st.session_state.messages) if m["role"] == "user"),
+                        None
+                    )
+                    if last_user_msg:
+                        st.markdown(f"**📌 当前问题:** {last_user_msg['content']}")
+                
+                # 评估结果
+                st.markdown("**📊 评估结果:**")
+                render_evaluation_summary(result, i)
             
-            # 右侧：文档和日志Tab
-            with col_docs:
+            with col_right:
+                # 文档和日志Tab
                 doc_log_tabs = st.tabs(["📄 检索文档", "📋 执行日志"])
                 
-                # Tab 1: 检索文档
+                # Tab 1: 检索文档（带分页）
                 with doc_log_tabs[0]:
-                    render_retrieved_docs(result)
+                    render_retrieved_docs_paginated(result, i)
                 
-                # Tab 2: 执行日志
+                # Tab 2: 执行日志（新格式）
                 with doc_log_tabs[1]:
-                    render_execution_logs_compact(result.get("metadata", {}))
-            
-            st.markdown("---")
-            
-            # ========== 底部：当前问题 + 评估结果 ==========
-            # 当前问题
-            if st.session_state.messages:
-                last_user_msg = next(
-                    (m for m in reversed(st.session_state.messages) if m["role"] == "user"),
-                    None
-                )
-                if last_user_msg:
-                    st.markdown(f"**📌 当前问题:** {last_user_msg['content']}")
-            
-            # 评估结果
-            st.markdown("**📊 评估结果:**")
-            render_evaluation_summary(result, i)
+                    render_execution_logs_new(result.get("metadata", {}))
+
+
+def render_retrieved_docs_paginated(result: dict, result_index: int):
+    """渲染检索文档（带分页）"""
+    retrieved_docs = result.get("retrieved_docs", [])
+    
+    if not retrieved_docs:
+        st.caption("无检索文档")
+        return
+    
+    # 初始化当前页码
+    page_key = f"doc_page_{result_index}"
+    if page_key not in st.session_state:
+        st.session_state[page_key] = 0
+    
+    current_page = st.session_state[page_key]
+    total_docs = len(retrieved_docs)
+    
+    # 分页控制
+    col_prev, col_pages, col_next = st.columns([1, 3, 1])
+    
+    with col_prev:
+        if st.button("◀ 上一个", key=f"prev_{result_index}", disabled=current_page == 0):
+            st.session_state[page_key] = max(0, current_page - 1)
+            st.rerun()
+    
+    with col_pages:
+        # 显示页码
+        page_nums = []
+        for p in range(total_docs):
+            if p == current_page:
+                page_nums.append(f"**[{p+1}]**")
+            else:
+                page_nums.append(f"{p+1}")
+        st.markdown(" ".join(page_nums), unsafe_allow_html=True)
+    
+    with col_next:
+        if st.button("下一个 ▶", key=f"next_{result_index}", disabled=current_page >= total_docs - 1):
+            st.session_state[page_key] = min(total_docs - 1, current_page + 1)
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # 显示当前文档
+    if 0 <= current_page < total_docs:
+        doc = retrieved_docs[current_page]
+        st.markdown(f"**文档 {current_page + 1}/{total_docs}** - 得分: `{doc.get('score', 0):.3f}`")
+        
+        doc_container = st.container(height=600)
+        with doc_container:
+            st.markdown(doc.get("content", ""))
+            st.caption(f"📄 来源: {doc.get('metadata', {}).get('source', 'unknown')}")
 
 
 def render_retrieved_docs(result: dict):
-    """渲染检索文档（紧凑）"""
+    """渲染检索文档（旧版，保留兼容）"""
     retrieved_docs = result.get("retrieved_docs", [])
     
     if not retrieved_docs:
@@ -126,6 +177,43 @@ def render_retrieved_docs(result: dict):
             st.caption(f"📄 {doc.get('metadata', {}).get('source', 'unknown')}")
             if i < len(retrieved_docs) - 1:
                 st.markdown("---")
+
+
+def render_execution_logs_new(metadata: dict):
+    """渲染执行日志（新格式）"""
+    logs = metadata.get("execution_logs", [])
+    timing = metadata.get("timing", {})
+    
+    if not logs:
+        st.caption("无执行日志")
+        return
+    
+    # 顶部一行显示时间统计
+    if timing:
+        st.markdown(f"**总耗时**: {timing.get('total', 0):.3f}s  |  **检索**: {timing.get('retrieve', 0):.3f}s  |  **生成**: {timing.get('generate', 0):.3f}s")
+        st.markdown("---")
+    
+    # 日志内容
+    log_container = st.container(height=600)
+    with log_container:
+        for log in logs:
+            timestamp = log["timestamp"].split("T")[1].split(".")[0]
+            step = log["step"]
+            message = log["message"]
+            details = log.get("details", {})
+            
+            icon_map = {
+                "init": "🚀", "retrieve_start": "🔍", "retrieve_end": "✅",
+                "generate_start": "💭", "generate_end": "✅", "complete": "🎉"
+            }
+            icon = icon_map.get(step, "•")
+            
+            st.markdown(f"{icon} `{timestamp}` **{step}**")
+            st.caption(f"   {message}")
+            
+            if details:
+                details_text = " | ".join([f"{k}: {v}" for k, v in details.items()])
+                st.caption(f"   └─ {details_text}")
 
 
 def render_execution_logs_compact(metadata: dict):

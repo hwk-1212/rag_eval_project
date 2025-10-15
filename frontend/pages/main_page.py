@@ -23,7 +23,7 @@ def render_main_page():
     
     # ========== 顶部配置区 ==========
     with st.expander("⚙️ 配置区", expanded=True):
-        config_col1, config_col2, config_col3 = st.columns(3)
+        config_col1, config_col2, config_col3 = st.columns([3, 5, 2])  # 30% 50% 20%
         
         # LLM配置（包含API密钥和模型）
         with config_col1:
@@ -236,7 +236,7 @@ def render_chat_window():
         st.caption(f"📝 当前会话: {st.session_state.current_session_id}")
     
     # 显示历史消息（增大窗口）
-    chat_container = st.container(height=650)
+    chat_container = st.container(height=850)
     
     with chat_container:
         if not st.session_state.messages:
@@ -249,17 +249,10 @@ def render_chat_window():
                         st.caption(message["timestamp"])
     
     # 底部按钮
-    btn_col1, btn_col2 = st.columns([1, 1])
-    
-    with btn_col1:
-        if st.button("🗑️ 清空对话", use_container_width=True):
-            st.session_state.messages = []
-            st.session_state.rag_results = []
-            st.rerun()
-    
-    with btn_col2:
-        if st.button("📊 查看RAG对比", use_container_width=True, type="primary"):
-            st.info("💡 请切换到「RAG对比」标签页查看详细对比")
+    if st.button("🗑️ 清空对话", use_container_width=True):
+        st.session_state.messages = []
+        st.session_state.rag_results = []
+        st.rerun()
     
     # 输入框
     query = st.chat_input("💬 请输入您的问题...")
