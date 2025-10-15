@@ -161,11 +161,27 @@ class RagasEvaluator:
             }
         
         try:
+            # 清理和验证contexts数据
+            cleaned_contexts = []
+            for ctx in contexts:
+                if isinstance(ctx, str) and ctx.strip():
+                    cleaned_contexts.append(ctx.strip())
+                elif ctx:  # 非字符串但有值
+                    cleaned_contexts.append(str(ctx))
+            
+            if not cleaned_contexts:
+                logger.warning("[RagasEvaluator] 没有有效的上下文，跳过评估")
+                return {
+                    "ragas_available": True,
+                    "evaluation_success": False,
+                    "error": "No valid contexts"
+                }
+            
             # 准备数据
             data = {
                 "question": [question],
                 "answer": [answer],
-                "contexts": [contexts],
+                "contexts": [cleaned_contexts],  # 使用清理后的contexts
             }
             
             if ground_truth:
@@ -195,7 +211,9 @@ class RagasEvaluator:
             logger.info("[RagasEvaluator] 开始Ragas评估...")
             logger.info(f"  - 问题: {question[:50]}...")
             logger.info(f"  - 答案: {answer[:50]}...")
-            logger.info(f"  - 上下文数量: {len(contexts)}")
+            logger.info(f"  - 原始上下文数量: {len(contexts)}")
+            logger.info(f"  - 清理后上下文数量: {len(cleaned_contexts)}")
+            logger.info(f"  - 上下文类型: {[type(c).__name__ for c in cleaned_contexts[:3]]}")
             
             # 在单独线程中执行评估，避免与uvloop冲突
             result = self._run_in_thread(
@@ -203,17 +221,19 @@ class RagasEvaluator:
                 metrics=metrics
             )
             
-            # 提取分数
+            # 提取分数（result是EvaluationResult对象，需要转换为字典）
+            result_dict = result.to_pandas().to_dict('records')[0] if hasattr(result, 'to_pandas') else dict(result)
+            
             scores = {
-                "faithfulness": result.get("faithfulness", 0.0),
-                "answer_relevancy": result.get("answer_relevancy", 0.0),
-                "context_precision": result.get("context_precision", 0.0),
-                "context_recall": result.get("context_recall", 0.0),
+                "faithfulness": result_dict.get("faithfulness", 0.0),
+                "answer_relevancy": result_dict.get("answer_relevancy", 0.0),
+                "context_precision": result_dict.get("context_precision", 0.0),
+                "context_recall": result_dict.get("context_recall", 0.0),
             }
             
             if ground_truth:
-                scores["answer_similarity"] = result.get("answer_similarity", 0.0)
-                scores["answer_correctness"] = result.get("answer_correctness", 0.0)
+                scores["answer_similarity"] = result_dict.get("answer_similarity", 0.0)
+                scores["answer_correctness"] = result_dict.get("answer_correctness", 0.0)
             
             # 计算综合分数
             avg_score = sum(scores.values()) / len(scores) if scores else 0.0
@@ -297,15 +317,17 @@ class RagasEvaluator:
                 metrics=metrics
             )
             
-            # 提取结果
+            # 提取结果（result是EvaluationResult对象）
+            result_dict = result.to_pandas().to_dict('records')[0] if hasattr(result, 'to_pandas') else dict(result)
+            
             return {
                 "ragas_available": True,
                 "evaluation_success": True,
                 "num_samples": len(questions),
-                "scores": dict(result),
+                "scores": result_dict,
                 "average_score": round(
-                    sum(result.values()) / len(result), 3
-                ) if result else 0.0
+                    sum(result_dict.values()) / len(result_dict), 3
+                ) if result_dict else 0.0
             }
             
         except Exception as e:
