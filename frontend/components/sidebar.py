@@ -110,6 +110,7 @@ def render_sidebar():
         "rse_rag": "RSE (相关段落提取)",
         "chunk_size_selector_rag": "Chunk Size Selector (动态分块)",
         "proposition_chunking_rag": "Proposition Chunking (命题分块)",
+        "graph_rag": "Graph RAG (知识图谱)",
     }
     
     # 使用checkbox形式
@@ -137,7 +138,7 @@ def render_sidebar():
                       key="check_hyde_rag"):
             selected_techniques.append("hyde_rag")
     
-    # 高级技术（4个）
+    # 高级技术（5个）
     st.markdown("**高级技术**")
     col3, col4 = st.columns(2)
     with col3:
@@ -149,6 +150,10 @@ def render_sidebar():
                       value="adaptive_rag" in st.session_state.selected_rag_techniques,
                       key="check_adaptive_rag"):
             selected_techniques.append("adaptive_rag")
+        if st.checkbox(rag_techniques["graph_rag"], 
+                      value="graph_rag" in st.session_state.selected_rag_techniques,
+                      key="check_graph_rag"):
+            selected_techniques.append("graph_rag")
     with col4:
         if st.checkbox(rag_techniques["query_transformation_rag"], 
                       value="query_transformation_rag" in st.session_state.selected_rag_techniques,

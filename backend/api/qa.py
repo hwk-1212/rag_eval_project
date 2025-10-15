@@ -27,6 +27,7 @@ from rag_techniques import (
     RSERAG,
     ChunkSizeSelectorRAG,
     PropositionChunkingRAG,
+    GraphRAG,
 )
 
 router = APIRouter()
@@ -51,6 +52,7 @@ RAG_TECHNIQUES = {
     "rse_rag": RSERAG,
     "chunk_size_selector_rag": ChunkSizeSelectorRAG,
     "proposition_chunking_rag": PropositionChunkingRAG,
+    "graph_rag": GraphRAG,
 }
 
 

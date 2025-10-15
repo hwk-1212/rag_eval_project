@@ -16,6 +16,7 @@ from .semantic_chunking_rag import SemanticChunkingRAG
 from .rse_rag import RSERAG
 from .chunk_size_selector_rag import ChunkSizeSelectorRAG
 from .proposition_chunking_rag import PropositionChunkingRAG
+from .graph_rag import GraphRAG
 
 __all__ = [
     "BaseRAG",
@@ -38,5 +39,6 @@ __all__ = [
     "RSERAG",
     "ChunkSizeSelectorRAG",
     "PropositionChunkingRAG",
+    "GraphRAG",
 ]
 
