@@ -186,9 +186,9 @@ def load_evaluations_from_db():
             if not qa_record_id:
                 continue
             
-            # 调用API获取评估数据
+            # 调用API获取评估数据（使用全局常量）
             response = requests.get(
-                f"{st.session_state.api_base_url}/evaluations/qa_record/{qa_record_id}",
+                f"{API_BASE_URL}/evaluations/qa_record/{qa_record_id}",
                 timeout=10
             )
             
