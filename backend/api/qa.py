@@ -59,30 +59,34 @@ RAG_TECHNIQUES = {
 def execute_single_rag(
     technique_name: str,
     query: str,
-    document: DBDocument,
+    document_id: int,
+    vector_collection: str,
     session_id: int,
     rag_config: dict,
-    llm_config: dict,
-    db: Session
+    llm_config: dict
 ) -> RagResult:
     """
-    执行单个RAG查询（用于并发）
+    执行单个RAG查询（用于并发，每个线程使用独立的数据库session）
     
     Args:
         technique_name: RAG技术名称
         query: 查询文本
-        document: 文档对象
+        document_id: 文档ID
+        vector_collection: 向量集合名称
         session_id: 会话ID
         rag_config: RAG配置
         llm_config: LLM配置
-        db: 数据库会话
         
     Returns:
         RAG执行结果
     """
+    # 为每个线程创建独立的数据库session
+    from backend.models.database import SessionLocal
+    db = SessionLocal()
+    
     try:
         # 创建向量存储
-        vector_store = VectorStore(document.vector_collection)
+        vector_store = VectorStore(vector_collection)
         
         # 创建RAG实例
         rag_class = RAG_TECHNIQUES[technique_name]
@@ -94,7 +98,7 @@ def execute_single_rag(
         # 保存到数据库
         qa_record = DBQARecord(
             session_id=session_id,
-            document_id=document.id,
+            document_id=document_id,
             query=query,
             rag_technique=technique_name,
             answer=rag_result.answer,
@@ -140,7 +144,11 @@ def execute_single_rag(
         
     except Exception as e:
         logger.error(f"RAG查询失败 [{technique_name}]: {e}")
+        db.rollback()
         raise
+    finally:
+        # 确保关闭数据库session
+        db.close()
 
 
 @router.post("/query", response_model=QueryResponse)
@@ -183,11 +191,11 @@ async def query(
                     execute_single_rag,
                     technique_name,
                     request.query,
-                    document,
+                    document.id,
+                    document.vector_collection,
                     session.id,
                     request.rag_config,
-                    request.llm_config,
-                    db
+                    request.llm_config
                 ): technique_name
                 for technique_name in request.rag_techniques
                 if technique_name in RAG_TECHNIQUES

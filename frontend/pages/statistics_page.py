@@ -276,8 +276,13 @@ def render_comparison_table():
                 
                 if eval_result.get("ragas_evaluation"):
                     ragas_eval = eval_result["ragas_evaluation"]
-                    row["Ragas忠实度"] = f"{ragas_eval.get('faithfulness', 0):.3f}"
-                    row["Ragas相关性"] = f"{ragas_eval.get('answer_relevancy', 0):.3f}"
+                    # 只展示实际评估的Ragas指标（非零值）
+                    faithfulness = ragas_eval.get('faithfulness', 0)
+                    answer_relevancy = ragas_eval.get('answer_relevancy', 0)
+                    if faithfulness > 0:
+                        row["Ragas忠实度"] = f"{faithfulness:.3f}"
+                    if answer_relevancy > 0:
+                        row["Ragas相关性"] = f"{answer_relevancy:.3f}"
         
         table_data.append(row)
     
@@ -315,10 +320,13 @@ def render_visualizations():
     techniques = [r["rag_technique"] for r in st.session_state.rag_results]
     exec_times = [r["execution_time"] for r in st.session_state.rag_results]
     
-    # 提取评分数据
+    # 提取评分数据 - 所有LLM评价维度
     overall_scores = []
     relevance_scores = []
     faithfulness_scores = []
+    coherence_scores = []
+    fluency_scores = []
+    conciseness_scores = []
     
     for i, result in enumerate(st.session_state.rag_results):
         if "eval_results" in st.session_state and i in st.session_state.eval_results:
@@ -326,32 +334,113 @@ def render_visualizations():
             if eval_result.get("evaluation_success"):
                 llm_eval = eval_result.get("llm_evaluation", {})
                 
-                # 使用正确的字段名：relevance_score, faithfulness_score
+                # 使用正确的字段名
                 overall_scores.append(llm_eval.get("overall_score", 0))
                 relevance_scores.append(llm_eval.get("relevance_score", 0))
                 faithfulness_scores.append(llm_eval.get("faithfulness_score", 0))
+                coherence_scores.append(llm_eval.get("coherence_score", 0))
+                fluency_scores.append(llm_eval.get("fluency_score", 0))
+                conciseness_scores.append(llm_eval.get("conciseness_score", 0))
             else:
                 overall_scores.append(0)
                 relevance_scores.append(0)
                 faithfulness_scores.append(0)
+                coherence_scores.append(0)
+                fluency_scores.append(0)
+                conciseness_scores.append(0)
         else:
             overall_scores.append(0)
             relevance_scores.append(0)
             faithfulness_scores.append(0)
+            coherence_scores.append(0)
+            fluency_scores.append(0)
+            conciseness_scores.append(0)
     
     # 两个图表Tab
     viz_tab1, viz_tab2 = st.tabs(["📊 LLM评分对比", "📈 性能对比"])
     
     with viz_tab1:
-        # LLM评分对比
+        # LLM评分对比 - 堆叠柱状图
         if any(s > 0 for s in overall_scores):
-            df_scores = pd.DataFrame({
-                "RAG技术": techniques,
-                "综合得分": overall_scores,
-                "相关性": relevance_scores,
-                "忠实度": faithfulness_scores
-            })
-            st.line_chart(df_scores.set_index("RAG技术"))
+            import plotly.graph_objects as go
+            
+            # 创建堆叠柱状图
+            fig = go.Figure()
+            
+            # 添加每个评价维度
+            fig.add_trace(go.Bar(
+                name='相关性',
+                x=techniques,
+                y=relevance_scores,
+                marker_color='#FF6B6B'
+            ))
+            
+            fig.add_trace(go.Bar(
+                name='忠实度',
+                x=techniques,
+                y=faithfulness_scores,
+                marker_color='#4ECDC4'
+            ))
+            
+            fig.add_trace(go.Bar(
+                name='连贯性',
+                x=techniques,
+                y=coherence_scores,
+                marker_color='#45B7D1'
+            ))
+            
+            fig.add_trace(go.Bar(
+                name='流畅性',
+                x=techniques,
+                y=fluency_scores,
+                marker_color='#FFA07A'
+            ))
+            
+            fig.add_trace(go.Bar(
+                name='简洁性',
+                x=techniques,
+                y=conciseness_scores,
+                marker_color='#98D8C8'
+            ))
+            
+            # 更新布局
+            fig.update_layout(
+                barmode='stack',
+                title='LLM评分维度对比（堆叠柱状图）',
+                xaxis_title='RAG技术',
+                yaxis_title='评分',
+                height=500,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                )
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # 添加综合得分对比（单独的柱状图）
+            st.markdown("##### 综合得分对比")
+            fig2 = go.Figure(go.Bar(
+                x=techniques,
+                y=overall_scores,
+                marker_color='#667EEA',
+                text=overall_scores,
+                texttemplate='%{text:.1f}',
+                textposition='outside'
+            ))
+            
+            fig2.update_layout(
+                title='综合得分',
+                xaxis_title='RAG技术',
+                yaxis_title='得分（0-10）',
+                height=350,
+                yaxis_range=[0, 10.5]
+            )
+            
+            st.plotly_chart(fig2, use_container_width=True)
         else:
             st.info("请先进行批量评估")
     
