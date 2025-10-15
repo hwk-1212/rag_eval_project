@@ -362,96 +362,158 @@ def render_visualizations():
     with viz_tab1:
         # LLM评分对比 - 堆叠柱状图
         if any(s > 0 for s in overall_scores):
-            import plotly.graph_objects as go
-            
-            # 创建堆叠柱状图
-            fig = go.Figure()
-            
-            # 添加每个评价维度
-            fig.add_trace(go.Bar(
-                name='相关性',
-                x=techniques,
-                y=relevance_scores,
-                marker_color='#FF6B6B'
-            ))
-            
-            fig.add_trace(go.Bar(
-                name='忠实度',
-                x=techniques,
-                y=faithfulness_scores,
-                marker_color='#4ECDC4'
-            ))
-            
-            fig.add_trace(go.Bar(
-                name='连贯性',
-                x=techniques,
-                y=coherence_scores,
-                marker_color='#45B7D1'
-            ))
-            
-            fig.add_trace(go.Bar(
-                name='流畅性',
-                x=techniques,
-                y=fluency_scores,
-                marker_color='#FFA07A'
-            ))
-            
-            fig.add_trace(go.Bar(
-                name='简洁性',
-                x=techniques,
-                y=conciseness_scores,
-                marker_color='#98D8C8'
-            ))
-            
-            # 更新布局
-            fig.update_layout(
-                barmode='stack',
-                title='LLM评分维度对比（堆叠柱状图）',
-                xaxis_title='RAG技术',
-                yaxis_title='评分',
-                height=500,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
+            try:
+                import plotly.graph_objects as go
+                
+                # 创建堆叠柱状图
+                fig = go.Figure()
+                
+                # 添加每个评价维度
+                fig.add_trace(go.Bar(
+                    name='相关性',
+                    x=techniques,
+                    y=relevance_scores,
+                    marker_color='#FF6B6B'
+                ))
+                
+                fig.add_trace(go.Bar(
+                    name='忠实度',
+                    x=techniques,
+                    y=faithfulness_scores,
+                    marker_color='#4ECDC4'
+                ))
+                
+                fig.add_trace(go.Bar(
+                    name='连贯性',
+                    x=techniques,
+                    y=coherence_scores,
+                    marker_color='#45B7D1'
+                ))
+                
+                fig.add_trace(go.Bar(
+                    name='流畅性',
+                    x=techniques,
+                    y=fluency_scores,
+                    marker_color='#FFA07A'
+                ))
+                
+                fig.add_trace(go.Bar(
+                    name='简洁性',
+                    x=techniques,
+                    y=conciseness_scores,
+                    marker_color='#98D8C8'
+                ))
+                
+                # 更新布局
+                fig.update_layout(
+                    barmode='stack',
+                    title='LLM评分维度对比（堆叠柱状图）',
+                    xaxis_title='RAG技术',
+                    yaxis_title='评分',
+                    height=500,
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    )
                 )
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # 添加综合得分对比（单独的柱状图）
-            st.markdown("##### 综合得分对比")
-            fig2 = go.Figure(go.Bar(
-                x=techniques,
-                y=overall_scores,
-                marker_color='#667EEA',
-                text=overall_scores,
-                texttemplate='%{text:.1f}',
-                textposition='outside'
-            ))
-            
-            fig2.update_layout(
-                title='综合得分',
-                xaxis_title='RAG技术',
-                yaxis_title='得分（0-10）',
-                height=350,
-                yaxis_range=[0, 10.5]
-            )
-            
-            st.plotly_chart(fig2, use_container_width=True)
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+            except ImportError:
+                st.error("⚠️ Plotly未安装，请运行: pip install plotly")
+                st.info("或执行脚本: bash install_plotly.sh")
+                # 降级到简单图表
+                df_scores = pd.DataFrame({
+                    "RAG技术": techniques,
+                    "相关性": relevance_scores,
+                    "忠实度": faithfulness_scores,
+                    "连贯性": coherence_scores,
+                    "流畅性": fluency_scores,
+                    "简洁性": conciseness_scores
+                })
+                st.bar_chart(df_scores.set_index("RAG技术"))
         else:
             st.info("请先进行批量评估")
     
     with viz_tab2:
-        # 性能对比（散点图：执行时间 vs 综合得分）
+        # 性能对比 - 综合得分和执行时间的并列柱状图
         if any(s > 0 for s in overall_scores):
-            df_perf = pd.DataFrame({
-                "执行时间": exec_times,
-                "综合得分": overall_scores
-            })
-            st.scatter_chart(df_perf, x="执行时间", y="综合得分")
+            try:
+                import plotly.graph_objects as go
+                from plotly.subplots import make_subplots
+                
+                # 创建并列双Y轴子图
+                fig = make_subplots(
+                    rows=1, cols=2,
+                    subplot_titles=('综合得分', '执行时间'),
+                    specs=[[{"secondary_y": False}, {"secondary_y": False}]]
+                )
+                
+                # 左图：综合得分
+                fig.add_trace(
+                    go.Bar(
+                        x=techniques,
+                        y=overall_scores,
+                        name='综合得分',
+                        marker_color='#667EEA',
+                        text=[f'{s:.1f}' for s in overall_scores],
+                        textposition='outside',
+                        showlegend=False
+                    ),
+                    row=1, col=1
+                )
+                
+                # 右图：执行时间
+                fig.add_trace(
+                    go.Bar(
+                        x=techniques,
+                        y=exec_times,
+                        name='执行时间',
+                        marker_color='#F093FB',
+                        text=[f'{t:.2f}s' for t in exec_times],
+                        textposition='outside',
+                        showlegend=False
+                    ),
+                    row=1, col=2
+                )
+                
+                # 更新布局
+                fig.update_xaxes(title_text="RAG技术", row=1, col=1)
+                fig.update_xaxes(title_text="RAG技术", row=1, col=2)
+                fig.update_yaxes(title_text="得分（0-10）", range=[0, 10.5], row=1, col=1)
+                fig.update_yaxes(title_text="时间（秒）", row=1, col=2)
+                
+                fig.update_layout(
+                    title_text='性能对比：综合得分 vs 执行时间',
+                    height=450,
+                    showlegend=False
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+            except ImportError:
+                st.error("⚠️ Plotly未安装，请运行: pip install plotly")
+                st.info("或执行脚本: bash install_plotly.sh")
+                # 降级到简单图表
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("##### 综合得分")
+                    df_score = pd.DataFrame({
+                        "RAG技术": techniques,
+                        "得分": overall_scores
+                    })
+                    st.bar_chart(df_score.set_index("RAG技术"))
+                
+                with col2:
+                    st.markdown("##### 执行时间")
+                    df_time = pd.DataFrame({
+                        "RAG技术": techniques,
+                        "时间(秒)": exec_times
+                    })
+                    st.bar_chart(df_time.set_index("RAG技术"))
         else:
             st.info("请先进行批量评估")
 
