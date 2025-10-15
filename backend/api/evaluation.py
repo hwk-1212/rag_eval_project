@@ -207,9 +207,13 @@ async def auto_evaluate(
             evaluation = DBEvaluation(
                 qa_record_id=request.qa_record_id,
                 score_type="auto",
+                # LLM评分
                 accuracy_score=final_scores.get("correctness_score"),
                 relevance_score=final_scores.get("relevance_score"),
+                faithfulness_score=final_scores.get("faithfulness_score"),
+                coherence_score=final_scores.get("coherence_score"),
                 fluency_score=final_scores.get("fluency_score"),
+                conciseness_score=final_scores.get("conciseness_score"),
                 completeness_score=final_scores.get("ragas_context_recall"),
                 overall_score=final_scores.get("overall_score"),
                 comments=llm_evaluation.get("feedback", "") if llm_evaluation else "",
@@ -217,7 +221,7 @@ async def auto_evaluate(
             )
             db.add(evaluation)
             db.commit()
-            logger.info(f"[AutoEval] 评估结果已保存到数据库")
+            logger.info(f"[AutoEval] 评估结果已保存到数据库，overall_score={final_scores.get('overall_score')}")
         
         elapsed_time = time.time() - start_time
         

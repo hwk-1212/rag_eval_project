@@ -267,18 +267,10 @@ def render_visualizations():
             relevance_scores.append(0)
             faithfulness_scores.append(0)
     
-    # 三个图表
-    viz_tab1, viz_tab2, viz_tab3 = st.tabs(["⏱️ 执行时间", "📊 LLM评分", "📈 性能对比"])
+    # 两个图表Tab
+    viz_tab1, viz_tab2 = st.tabs(["📊 LLM评分对比", "📈 性能对比"])
     
     with viz_tab1:
-        # 执行时间柱状图
-        df_time = pd.DataFrame({
-            "RAG技术": techniques,
-            "执行时间(秒)": exec_times
-        })
-        st.bar_chart(df_time.set_index("RAG技术"))
-    
-    with viz_tab2:
         # LLM评分对比
         if any(s > 0 for s in overall_scores):
             df_scores = pd.DataFrame({
@@ -291,15 +283,14 @@ def render_visualizations():
         else:
             st.info("请先进行批量评估")
     
-    with viz_tab3:
+    with viz_tab2:
         # 性能对比（散点图：执行时间 vs 综合得分）
         if any(s > 0 for s in overall_scores):
             df_perf = pd.DataFrame({
-                "RAG技术": techniques,
                 "执行时间": exec_times,
                 "综合得分": overall_scores
             })
-            st.scatter_chart(df_perf, x="执行时间", y="综合得分", size=20)
+            st.scatter_chart(df_perf, x="执行时间", y="综合得分")
         else:
             st.info("请先进行批量评估")
 
@@ -321,23 +312,18 @@ def render_recommendations():
                 overall_score = llm_eval.get("overall_score", 0)
                 exec_time = result["execution_time"]
                 
-                # 综合分数：质量(70%) + 速度(30%)
-                time_score = max(0, 10 - exec_time)  # 时间越短得分越高
-                combined_score = 0.7 * overall_score + 0.3 * time_score
-                
                 rankings.append({
                     "rag_technique": result["rag_technique"],
                     "overall_score": overall_score,
-                    "exec_time": exec_time,
-                    "combined_score": combined_score
+                    "exec_time": exec_time
                 })
     
     if not rankings:
         st.warning("暂无有效评分")
         return
     
-    # 排序
-    rankings.sort(key=lambda x: x["combined_score"], reverse=True)
+    # 排序（按overall_score排序）
+    rankings.sort(key=lambda x: x["overall_score"], reverse=True)
     
     # 显示Top 3
     st.markdown("#### 🏆 Top 3 推荐RAG技术")
@@ -351,8 +337,8 @@ def render_recommendations():
     for i, (col, item) in enumerate(zip(cols, top3)):
         with col:
             st.markdown(f"### {medals[i]} {item['rag_technique']}")
-            st.metric("综合评分", f"{item['combined_score']:.2f}/10")
-            st.caption(f"质量: {item['overall_score']:.1f} | 速度: {item['exec_time']:.2f}s")
+            st.metric("综合评分", f"{item['overall_score']:.1f}/10")
+            st.caption(f"执行时间: {item['exec_time']:.2f}s")
 
 
 def render_ai_report():

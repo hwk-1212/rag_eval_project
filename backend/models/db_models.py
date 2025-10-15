@@ -68,10 +68,13 @@ class Evaluation(Base):
     qa_record_id = Column(Integer, ForeignKey("qa_records.id"))
     score_type = Column(String(50), nullable=False)  # human/llm/auto
     
-    # 评分维度
+    # 评分维度（LLM评估）
     accuracy_score = Column(Float)  # 准确性
     relevance_score = Column(Float)  # 相关性
+    faithfulness_score = Column(Float)  # 忠实度
+    coherence_score = Column(Float)  # 连贯性
     fluency_score = Column(Float)  # 流畅性
+    conciseness_score = Column(Float)  # 简洁性
     completeness_score = Column(Float)  # 完整性
     overall_score = Column(Float)  # 总体评分
     
