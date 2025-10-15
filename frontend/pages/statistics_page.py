@@ -199,12 +199,12 @@ def render_comparison_table():
             eval_result = st.session_state.eval_results[i]
             if eval_result.get("evaluation_success"):
                 llm_eval = eval_result.get("llm_evaluation", {})
-                scores = llm_eval.get("scores", {})
                 
+                # 后端返回的字段名是 relevance_score, faithfulness_score 等
                 row["综合得分"] = f"{llm_eval.get('overall_score', 0):.1f}"
-                row["相关性"] = f"{scores.get('relevance', 0):.1f}"
-                row["忠实度"] = f"{scores.get('faithfulness', 0):.1f}"
-                row["连贯性"] = f"{scores.get('coherence', 0):.1f}"
+                row["相关性"] = f"{llm_eval.get('relevance_score', 0):.1f}"
+                row["忠实度"] = f"{llm_eval.get('faithfulness_score', 0):.1f}"
+                row["连贯性"] = f"{llm_eval.get('coherence_score', 0):.1f}"
                 
                 if eval_result.get("ragas_evaluation"):
                     ragas_eval = eval_result["ragas_evaluation"]
@@ -253,11 +253,11 @@ def render_visualizations():
             eval_result = st.session_state.eval_results[i]
             if eval_result.get("evaluation_success"):
                 llm_eval = eval_result.get("llm_evaluation", {})
-                scores = llm_eval.get("scores", {})
                 
+                # 使用正确的字段名：relevance_score, faithfulness_score
                 overall_scores.append(llm_eval.get("overall_score", 0))
-                relevance_scores.append(scores.get("relevance", 0))
-                faithfulness_scores.append(scores.get("faithfulness", 0))
+                relevance_scores.append(llm_eval.get("relevance_score", 0))
+                faithfulness_scores.append(llm_eval.get("faithfulness_score", 0))
             else:
                 overall_scores.append(0)
                 relevance_scores.append(0)
