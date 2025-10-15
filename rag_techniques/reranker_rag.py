@@ -45,15 +45,26 @@ class RerankerRAG(BaseRAG):
         try:
             # Step 1: 初始检索 - 获取更多候选文档
             candidate_count = min(self.rerank_top_k, top_k * 3)
+            self._log("initial_search_start", f"开始初始检索，获取候选文档", {
+                "candidate_count": candidate_count,
+                "target_top_k": top_k,
+                "rerank_method": self.rerank_method
+            })
+            
             candidates = self.vector_store.similarity_search(
                 query=query,
                 top_k=candidate_count
             )
             
             if not candidates:
+                self._log("initial_search_empty", "初始检索未找到文档")
                 logger.warning(f"[Reranker RAG] 初始检索未找到文档")
                 return []
             
+            self._log("initial_search_complete", f"初始检索完成", {
+                "candidate_count": len(candidates),
+                "original_top_scores": [round(c["score"], 4) for c in candidates[:3]]
+            })
             logger.info(f"[Reranker RAG] 初始检索到 {len(candidates)} 个候选文档")
             
             # Step 2: 使用Reranker重新打分
@@ -62,9 +73,15 @@ class RerankerRAG(BaseRAG):
             # Step 3: 返回top_k
             final_docs = reranked[:top_k]
             
+            self._log("rerank_result", f"重排序完成，选择top {top_k}文档", {
+                "reranked_count": len(reranked),
+                "final_count": len(final_docs),
+                "new_top_scores": [round(d.get("rerank_score", 0), 4) for d in final_docs[:3]]
+            })
+            
             # 转换为RetrievedDoc对象
             retrieved_docs = []
-            for doc in final_docs:
+            for idx, doc in enumerate(final_docs):
                 retrieved_doc = RetrievedDoc(
                     chunk_id=doc["chunk_id"],
                     content=doc["content"],
@@ -78,11 +95,21 @@ class RerankerRAG(BaseRAG):
                     }
                 )
                 retrieved_docs.append(retrieved_doc)
+                
+                # 记录前3个文档的详细信息
+                if idx < 3:
+                    self._log(f"rerank_doc_{idx+1}", f"重排序文档 #{idx+1}", {
+                        "filename": doc.get("filename", "Unknown"),
+                        "original_score": round(doc.get("original_score", 0), 4),
+                        "rerank_score": round(doc.get("rerank_score", 0), 4),
+                        "score_change": round(doc.get("rerank_score", 0) - doc.get("original_score", 0), 4)
+                    })
             
             logger.info(f"[Reranker RAG] 重排序后返回 {len(retrieved_docs)} 个文档")
             return retrieved_docs
             
         except Exception as e:
+            self._log("retrieve_error", f"检索失败: {str(e)}", {"error": str(e)})
             logger.error(f"[Reranker RAG] 检索失败: {e}")
             return []
     
@@ -122,6 +149,10 @@ class RerankerRAG(BaseRAG):
         Returns:
             重排序后的文档列表
         """
+        self._log("rerank_llm_start", f"开始LLM重排序", {
+            "doc_count": len(documents),
+            "method": "llm_scoring"
+        })
         logger.info(f"[Reranker RAG] 使用LLM重排序 {len(documents)} 个文档")
         
         system_prompt = """你是文档相关性评估专家，擅长判断文档与搜索查询的匹配程度。你的任务是根据文档对给定查询的应答质量，给出0到10分的评分。
@@ -135,11 +166,17 @@ class RerankerRAG(BaseRAG):
 必须仅返回0到10之间的单个整数评分，不要包含任何其他内容。"""
         
         scored_docs = []
+        failed_count = 0
         
         for i, doc in enumerate(documents):
             try:
                 # 每5个文档显示一次进度
                 if i % 5 == 0 and i > 0:
+                    self._log("rerank_llm_progress", f"评分进度: {i}/{len(documents)}", {
+                        "progress": f"{round(i / len(documents) * 100, 1)}%",
+                        "completed": i,
+                        "total": len(documents)
+                    })
                     logger.info(f"[Reranker RAG] 评分进度: {i}/{len(documents)}")
                 
                 user_prompt = f"""查询: {query}
@@ -167,6 +204,7 @@ class RerankerRAG(BaseRAG):
                     score = float(score_match.group(1))
                 else:
                     # 如果提取失败，使用原始相似度分数
+                    failed_count += 1
                     logger.warning(f"[Reranker RAG] 无法提取评分: '{score_text}'，使用原始分数")
                     score = doc.get("score", 0) * 10
                 
@@ -175,7 +213,18 @@ class RerankerRAG(BaseRAG):
                 doc["rerank_score"] = score / 10.0  # 归一化到0-1
                 scored_docs.append(doc)
                 
+                # 记录前3个和最后1个文档的评分详情
+                if i < 3 or i == len(documents) - 1:
+                    self._log(f"rerank_llm_score_{i+1}", f"文档 #{i+1} LLM评分", {
+                        "filename": doc.get("filename", "Unknown"),
+                        "original_score": round(doc["original_score"], 4),
+                        "llm_score": round(doc["rerank_score"], 4),
+                        "llm_response": score_text[:50]
+                    })
+                
             except Exception as e:
+                failed_count += 1
+                self._log(f"rerank_llm_error_{i+1}", f"文档 #{i+1} 评分失败", {"error": str(e)})
                 logger.error(f"[Reranker RAG] 文档{i}评分失败: {e}")
                 doc["original_score"] = doc.get("score", 0)
                 doc["rerank_score"] = doc.get("score", 0)
@@ -183,6 +232,13 @@ class RerankerRAG(BaseRAG):
         
         # 按重排序分数降序排序
         reranked = sorted(scored_docs, key=lambda x: x["rerank_score"], reverse=True)
+        
+        self._log("rerank_llm_complete", "LLM重排序完成", {
+            "total_docs": len(documents),
+            "success_count": len(documents) - failed_count,
+            "failed_count": failed_count,
+            "top_3_rerank_scores": [round(d["rerank_score"], 4) for d in reranked[:3]]
+        })
         
         logger.info(f"[Reranker RAG] LLM重排序完成")
         return reranked
@@ -253,22 +309,36 @@ class RerankerRAG(BaseRAG):
         """
         try:
             if not retrieved_docs:
+                self._log("generate_no_docs", "没有检索到文档，返回默认回答")
                 return "抱歉，没有找到相关信息来回答您的问题。"
             
             # 提取文档内容
+            self._log("generate_prepare_context", "准备上下文（使用重排序后的文档）", {
+                "doc_count": len(retrieved_docs),
+                "total_context_length": sum(len(doc.content) for doc in retrieved_docs),
+                "avg_rerank_score": round(sum(doc.score for doc in retrieved_docs) / len(retrieved_docs), 4)
+            })
+            
             context = [doc.content for doc in retrieved_docs]
             
             # 调用LLM生成答案
+            self._log("generate_llm_call", "调用LLM生成答案")
             answer = generate_rag_answer(
                 query=query,
                 context=context,
                 system_prompt=self.system_prompt
             )
             
+            self._log("generate_complete", "答案生成成功", {
+                "answer_length": len(answer),
+                "answer_preview": answer[:150] + "..." if len(answer) > 150 else answer
+            })
+            
             logger.info(f"[Reranker RAG] 成功生成答案，长度: {len(answer)} 字符")
             return answer
             
         except Exception as e:
+            self._log("generate_error", f"生成答案失败: {str(e)}", {"error": str(e)})
             logger.error(f"[Reranker RAG] 生成答案失败: {e}")
             return f"生成答案时出现错误: {str(e)}"
 
