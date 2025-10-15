@@ -6,37 +6,56 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from frontend.components.sidebar import render_sidebar
-from frontend.components.main_chat import render_main_chat
-from frontend.components.rag_comparison import render_rag_comparison
+from frontend.pages.main_page import render_main_page
+from frontend.pages.comparison_page import render_comparison_page
+from frontend.pages.statistics_page import render_statistics_page
 
 # 页面配置
 st.set_page_config(
     page_title="RAG评测对比平台",
     page_icon="🤖",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # 自定义CSS
 st.markdown("""
 <style>
     .main {
-        padding: 1rem;
+        padding: 0.5rem;
     }
     .stButton>button {
         width: 100%;
     }
     .block-container {
-        padding-top: 2rem;
+        padding-top: 1rem;
         padding-bottom: 0rem;
     }
     h1 {
         color: #1f77b4;
-        padding-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        font-size: 2rem;
+    }
+    h2 {
+        font-size: 1.5rem;
+        padding-top: 0.5rem;
+    }
+    h3 {
+        font-size: 1.2rem;
     }
     .stTabs [data-baseweb="tab-list"] {
-        gap: 2rem;
+        gap: 1rem;
+        background-color: #f0f2f6;
+        padding: 0.5rem;
+        border-radius: 5px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 0.5rem 1.5rem;
+        font-weight: 600;
+    }
+    /* 紧凑的卡片样式 */
+    .element-container {
+        margin-bottom: 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -52,31 +71,33 @@ if "selected_rag_techniques" not in st.session_state:
     st.session_state.selected_rag_techniques = ["simple_rag"]
 if "rag_results" not in st.session_state:
     st.session_state.rag_results = []
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "主页面"
 
 # 主标题
-st.title("🤖 RAG评测对比平台")
+st.title("🤖 RAG评测对比平台 v1.7")
 
-# 创建三栏布局
-col1, col2, col3 = st.columns([2.5, 4, 3.5])
+# 顶部页面切换
+page_tabs = st.tabs(["🏠 主页面", "📊 RAG对比", "📈 统计分析"])
 
-# 左侧栏 - 文件管理和配置
-with col1:
-    render_sidebar()
+# Page 1: 主页面
+with page_tabs[0]:
+    render_main_page()
 
-# 中间栏 - 主对话窗口
-with col2:
-    render_main_chat()
+# Page 2: RAG对比
+with page_tabs[1]:
+    render_comparison_page()
 
-# 右侧栏 - RAG结果对比
-with col3:
-    render_rag_comparison()
+# Page 3: 统计分析
+with page_tabs[2]:
+    render_statistics_page()
 
 # 页脚
 st.markdown("---")
 st.markdown(
     """
-    <div style='text-align: center; color: gray; padding: 1rem;'>
-        RAG评测对比平台 v1.0.0 | Powered by FastAPI & Streamlit
+    <div style='text-align: center; color: gray; padding: 0.5rem;'>
+        RAG评测对比平台 v1.7 | 已实现18/19 RAG技术 | Powered by FastAPI & Streamlit
     </div>
     """,
     unsafe_allow_html=True

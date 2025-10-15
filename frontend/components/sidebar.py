@@ -5,6 +5,100 @@ from pathlib import Path
 API_BASE_URL = "http://localhost:8000/api/v1"
 
 
+def render_config_section():
+    """渲染配置区（用于main_page）"""
+    # 初始化配置
+    if "llm_config" not in st.session_state:
+        st.session_state.llm_config = {
+            "model": "qwen-plus",
+            "temperature": 0.7,
+            "max_tokens": 2000
+        }
+    
+    if "eval_config" not in st.session_state:
+        st.session_state.eval_config = {
+            "auto_eval_enabled": False,
+            "use_ragas": False
+        }
+    
+    # 这个函数在main_page中实现，这里只是占位
+    pass
+
+
+def render_knowledge_base_section():
+    """渲染知识库管理区（用于main_page）"""
+    # 文件上传
+    uploaded_file = st.file_uploader(
+        "📤 上传文档",
+        type=["pdf", "txt", "md", "docx"],
+        help="支持PDF、TXT、MD、DOCX格式"
+    )
+    
+    if uploaded_file and st.button("上传并处理", use_container_width=True):
+        with st.spinner("正在上传和处理文档..."):
+            try:
+                files = {"file": uploaded_file}
+                response = requests.post(f"{API_BASE_URL}/documents/upload", files=files)
+                
+                if response.status_code == 200:
+                    st.success(f"✅ 文档上传成功: {uploaded_file.name}")
+                    st.rerun()
+                else:
+                    st.error(f"❌ 上传失败: {response.text}")
+            except Exception as e:
+                st.error(f"❌ 上传出错: {str(e)}")
+    
+    st.markdown("---")
+    
+    # 文档列表
+    st.subheader("📚 已上传文档")
+    
+    try:
+        response = requests.get(f"{API_BASE_URL}/documents/")
+        if response.status_code == 200:
+            documents = response.json()
+            
+            if documents:
+                if "selected_documents" not in st.session_state:
+                    st.session_state.selected_documents = []
+                
+                for doc in documents:
+                    col1, col2 = st.columns([3, 1])
+                    
+                    with col1:
+                        is_selected = doc["id"] in st.session_state.selected_documents
+                        if st.checkbox(
+                            f"📄 {doc['filename']}",
+                            value=is_selected,
+                            key=f"doc_{doc['id']}"
+                        ):
+                            if doc["id"] not in st.session_state.selected_documents:
+                                st.session_state.selected_documents.append(doc["id"])
+                        else:
+                            if doc["id"] in st.session_state.selected_documents:
+                                st.session_state.selected_documents.remove(doc["id"])
+                    
+                    with col2:
+                        if st.button("🗑️", key=f"del_{doc['id']}", help="删除文档"):
+                            try:
+                                del_response = requests.delete(f"{API_BASE_URL}/documents/{doc['id']}")
+                                if del_response.status_code == 200:
+                                    st.success("删除成功")
+                                    st.rerun()
+                                else:
+                                    st.error(f"删除失败: {del_response.text}")
+                            except Exception as e:
+                                st.error(f"删除出错: {str(e)}")
+                
+                st.caption(f"✅ 已选择 {len(st.session_state.selected_documents)} 个文档")
+            else:
+                st.info("暂无文档，请上传")
+        else:
+            st.error("获取文档列表失败")
+    except Exception as e:
+        st.error(f"加载文档列表失败: {str(e)}")
+
+
 def render_sidebar():
     """渲染左侧边栏 - 文件管理和配置"""
     
