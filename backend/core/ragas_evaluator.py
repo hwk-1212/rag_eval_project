@@ -5,6 +5,7 @@ Ragas框架评估包装器
 from typing import List, Dict, Any, Optional
 from loguru import logger
 import traceback
+import os
 
 try:
     from datasets import Dataset
@@ -14,29 +15,82 @@ try:
         answer_relevancy,
         context_recall,
         context_precision,
-        answer_similarity,
-        answer_correctness
     )
+    from langchain_openai import ChatOpenAI, OpenAIEmbeddings
     RAGAS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     RAGAS_AVAILABLE = False
-    logger.warning("[RagasEvaluator] Ragas未安装，相关功能将不可用")
+    logger.warning(f"[RagasEvaluator] Ragas相关库未安装: {e}")
 
 
 class RagasEvaluator:
     """
     Ragas评估器
     使用Ragas框架进行标准化评估
+    
+    Ragas评估维度：
+    1. faithfulness（忠实度）：答案和上下文的关系 - 答案是否基于检索到的上下文
+    2. answer_relevancy（答案相关性）：答案和问题的关系 - 答案是否回答了问题
+    3. context_precision（上下文精确度）：问题和上下文的关系 - 相关上下文是否排在前面
+    4. context_recall（上下文召回率）：问题和上下文的关系 - 是否检索到所有相关上下文
     """
     
-    def __init__(self):
-        """初始化Ragas评估器"""
+    def __init__(
+        self,
+        llm_base_url: str = None,
+        llm_api_key: str = None,
+        llm_model: str = "qwen-plus",
+        embedding_base_url: str = None,
+        embedding_api_key: str = None,
+        embedding_model: str = "text-embedding-v3"
+    ):
+        """
+        初始化Ragas评估器
+        
+        Args:
+            llm_base_url: LLM API地址
+            llm_api_key: LLM API密钥
+            llm_model: LLM模型名称
+            embedding_base_url: Embedding API地址
+            embedding_api_key: Embedding API密钥
+            embedding_model: Embedding模型名称
+        """
         if not RAGAS_AVAILABLE:
-            logger.error("[RagasEvaluator] Ragas未安装，请运行: pip install ragas")
+            logger.error("[RagasEvaluator] Ragas未安装，请运行: pip install ragas langchain-openai")
             self.available = False
-        else:
+            return
+        
+        try:
+            # 从环境变量或参数获取配置
+            self.llm_base_url = llm_base_url or os.getenv("OPENAI_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+            self.llm_api_key = llm_api_key or os.getenv("OPENAI_API_KEY", "sk-e96412163b6a4f6189b65b98532eaf77")
+            self.llm_model = llm_model
+            
+            self.embedding_base_url = embedding_base_url or self.llm_base_url
+            self.embedding_api_key = embedding_api_key or self.llm_api_key
+            self.embedding_model = embedding_model
+            
+            # 初始化LLM（用于评估）
+            self.llm = ChatOpenAI(
+                model=self.llm_model,
+                openai_api_key=self.llm_api_key,
+                openai_api_base=self.llm_base_url,
+                temperature=0
+            )
+            
+            # 初始化Embeddings（用于相似度计算）
+            self.embeddings = OpenAIEmbeddings(
+                model=self.embedding_model,
+                openai_api_key=self.embedding_api_key,
+                openai_api_base=self.embedding_base_url
+            )
+            
             self.available = True
-            logger.info("[RagasEvaluator] 初始化完成")
+            logger.info(f"[RagasEvaluator] 初始化完成，LLM: {self.llm_model}, Embeddings: {self.embedding_model}")
+            
+        except Exception as e:
+            logger.error(f"[RagasEvaluator] 初始化失败: {e}")
+            self.available = False
     
     def evaluate_rag(
         self,
@@ -96,11 +150,16 @@ class RagasEvaluator:
             #     ])
             
             logger.info("[RagasEvaluator] 开始Ragas评估...")
+            logger.info(f"  - 问题: {question[:50]}...")
+            logger.info(f"  - 答案: {answer[:50]}...")
+            logger.info(f"  - 上下文数量: {len(contexts)}")
             
-            # 执行评估
+            # 执行评估（传入LLM和Embeddings）
             result = evaluate(
                 dataset,
                 metrics=metrics,
+                llm=self.llm,
+                embeddings=self.embeddings,
             )
             
             # 提取分数
@@ -191,8 +250,13 @@ class RagasEvaluator:
             
             logger.info(f"[RagasEvaluator] 开始批量评估 {len(questions)} 个样本...")
             
-            # 执行评估
-            result = evaluate(dataset, metrics=metrics)
+            # 执行评估（传入LLM和Embeddings）
+            result = evaluate(
+                dataset,
+                metrics=metrics,
+                llm=self.llm,
+                embeddings=self.embeddings
+            )
             
             # 提取结果
             return {
