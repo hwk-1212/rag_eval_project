@@ -116,59 +116,71 @@ def render_llm_config():
 
 
 def render_rag_selection():
-    """RAG技术选择区（checkbox勾选）"""
+    """RAG技术选择区（分类checkbox勾选）"""
     if "selected_rag_techniques" not in st.session_state:
         st.session_state.selected_rag_techniques = ["simple_rag"]
     
-    rag_techniques = {
-        "simple_rag": "Simple RAG",
-        "reranker_rag": "Reranker RAG",
-        "fusion_rag": "Fusion RAG",
-        "hyde_rag": "HyDE RAG",
-        "contextual_compression_rag": "Contextual Compression",
-        "query_transformation_rag": "Query Transformation",
-        "adaptive_rag": "Adaptive RAG",
-        "self_rag": "Self RAG",
-        "crag": "CRAG",
-        "context_enriched_rag": "Context Enriched",
-        "contextual_chunk_headers_rag": "Contextual Chunk Headers",
-        "hierarchical_rag": "Hierarchical RAG",
-        "doc_augmentation_rag": "Doc Augmentation",
-        "semantic_chunking_rag": "Semantic Chunking",
-        "rse_rag": "RSE RAG",
-        "chunk_size_selector_rag": "Chunk Size Selector",
-        "proposition_chunking_rag": "Proposition Chunking",
-        "graph_rag": "Graph RAG",
+    # 按类别组织RAG技术
+    rag_categories = {
+        "基础检索增强": {
+            "simple_rag": "Simple RAG",
+            "reranker_rag": "Reranker RAG",
+            "fusion_rag": "Fusion RAG",
+            "hyde_rag": "HyDE RAG",
+        },
+        "高级技术": {
+            "contextual_compression_rag": "Contextual Compression",
+            "query_transformation_rag": "Query Transformation",
+            "adaptive_rag": "Adaptive RAG",
+            "self_rag": "Self RAG",
+            "graph_rag": "Graph RAG",
+        },
+        "纠错与增强": {
+            "crag": "CRAG",
+            "context_enriched_rag": "Context Enriched",
+            "contextual_chunk_headers_rag": "Contextual Chunk Headers",
+        },
+        "优化策略": {
+            "hierarchical_rag": "Hierarchical RAG",
+            "doc_augmentation_rag": "Doc Augmentation",
+            "semantic_chunking_rag": "Semantic Chunking",
+        },
+        "精细化策略": {
+            "rse_rag": "RSE RAG",
+            "chunk_size_selector_rag": "Chunk Size Selector",
+            "proposition_chunking_rag": "Proposition Chunking",
+        }
     }
     
-    # 使用checkbox形式（紧凑排列）
     selected_techniques = []
     
-    # 分组显示（每行2个）
-    rag_items = list(rag_techniques.items())
-    for i in range(0, len(rag_items), 2):
-        col1, col2 = st.columns(2)
+    # 按类别显示
+    for category, techniques in rag_categories.items():
+        st.markdown(f"**{category}**")
         
-        # 第一个checkbox
-        with col1:
-            key1, name1 = rag_items[i]
-            if st.checkbox(
-                name1, 
-                value=key1 in st.session_state.selected_rag_techniques,
-                key=f"rag_check_{key1}"
-            ):
-                selected_techniques.append(key1)
-        
-        # 第二个checkbox（如果存在）
-        with col2:
-            if i + 1 < len(rag_items):
-                key2, name2 = rag_items[i + 1]
+        # 每行2个
+        items = list(techniques.items())
+        for i in range(0, len(items), 2):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                key1, name1 = items[i]
                 if st.checkbox(
-                    name2, 
-                    value=key2 in st.session_state.selected_rag_techniques,
-                    key=f"rag_check_{key2}"
+                    name1,
+                    value=key1 in st.session_state.selected_rag_techniques,
+                    key=f"rag_{key1}"
                 ):
-                    selected_techniques.append(key2)
+                    selected_techniques.append(key1)
+            
+            with col2:
+                if i + 1 < len(items):
+                    key2, name2 = items[i + 1]
+                    if st.checkbox(
+                        name2,
+                        value=key2 in st.session_state.selected_rag_techniques,
+                        key=f"rag_{key2}"
+                    ):
+                        selected_techniques.append(key2)
     
     # 更新选中的技术
     st.session_state.selected_rag_techniques = selected_techniques if selected_techniques else ["simple_rag"]
@@ -223,8 +235,8 @@ def render_chat_window():
     if st.session_state.current_session_id:
         st.caption(f"📝 当前会话: {st.session_state.current_session_id}")
     
-    # 显示历史消息
-    chat_container = st.container(height=500)
+    # 显示历史消息（增大窗口）
+    chat_container = st.container(height=650)
     
     with chat_container:
         if not st.session_state.messages:
@@ -283,7 +295,20 @@ def render_knowledge_base_section():
     st.markdown("---")
     
     # 文档列表
-    st.subheader("📚 文档列表")
+    col_title, col_select_all = st.columns([3, 1])
+    with col_title:
+        st.subheader("📚 文档列表")
+    with col_select_all:
+        if st.button("☑️ 全选", key="kb_select_all", use_container_width=True):
+            # 获取所有文档ID并全选
+            try:
+                response = requests.get(f"{API_BASE_URL}/documents/")
+                if response.status_code == 200:
+                    documents = response.json()
+                    st.session_state.selected_documents = [doc["id"] for doc in documents]
+                    st.rerun()
+            except:
+                pass
     
     try:
         response = requests.get(f"{API_BASE_URL}/documents/")
