@@ -6,6 +6,9 @@ from typing import List, Dict, Any, Optional
 from loguru import logger
 import traceback
 import os
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 try:
     from datasets import Dataset
@@ -92,6 +95,46 @@ class RagasEvaluator:
             logger.error(f"[RagasEvaluator] 初始化失败: {e}")
             self.available = False
     
+    def _run_in_thread(self, dataset, metrics):
+        """
+        在单独线程中运行Ragas评估，避免与FastAPI的uvloop冲突
+        
+        Args:
+            dataset: Ragas数据集
+            metrics: 评估指标列表
+            
+        Returns:
+            评估结果字典
+        """
+        def _evaluate_sync():
+            """同步执行评估"""
+            try:
+                # 在新线程中创建新的事件循环
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                # 执行评估
+                result = evaluate(
+                    dataset,
+                    metrics=metrics,
+                    llm=self.llm,
+                    embeddings=self.embeddings,
+                )
+                
+                loop.close()
+                return result
+                
+            except Exception as e:
+                logger.error(f"[RagasEvaluator] 线程内评估失败: {e}")
+                raise
+        
+        # 使用ThreadPoolExecutor在单独线程中运行
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_evaluate_sync)
+            result = future.result(timeout=300)  # 5分钟超时
+        
+        return result
+    
     def evaluate_rag(
         self,
         question: str,
@@ -154,12 +197,10 @@ class RagasEvaluator:
             logger.info(f"  - 答案: {answer[:50]}...")
             logger.info(f"  - 上下文数量: {len(contexts)}")
             
-            # 执行评估（传入LLM和Embeddings）
-            result = evaluate(
-                dataset,
-                metrics=metrics,
-                llm=self.llm,
-                embeddings=self.embeddings,
+            # 在单独线程中执行评估，避免与uvloop冲突
+            result = self._run_in_thread(
+                dataset=dataset,
+                metrics=metrics
             )
             
             # 提取分数
@@ -250,12 +291,10 @@ class RagasEvaluator:
             
             logger.info(f"[RagasEvaluator] 开始批量评估 {len(questions)} 个样本...")
             
-            # 执行评估（传入LLM和Embeddings）
-            result = evaluate(
-                dataset,
-                metrics=metrics,
-                llm=self.llm,
-                embeddings=self.embeddings
+            # 在单独线程中执行评估，避免与uvloop冲突
+            result = self._run_in_thread(
+                dataset=dataset,
+                metrics=metrics
             )
             
             # 提取结果
