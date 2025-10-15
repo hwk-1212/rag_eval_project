@@ -36,22 +36,36 @@ class FusionRAG(BaseRAG):
     def _build_bm25_index(self, documents: List[Dict]):
         """构建BM25索引"""
         try:
+            self._log("bm25_index_start", "开始构建BM25索引", {
+                "doc_count": len(documents)
+            })
+            
             # 提取文档内容
             self.bm25_corpus = []
             self.bm25_docs_map = {}
             
+            total_tokens = 0
             for i, doc in enumerate(documents):
                 content = doc["content"]
                 # 使用jieba分词
                 tokens = list(jieba.cut(content))
                 self.bm25_corpus.append(tokens)
                 self.bm25_docs_map[i] = doc
+                total_tokens += len(tokens)
             
             # 创建BM25索引
             self.bm25 = BM25Okapi(self.bm25_corpus)
+            
+            self._log("bm25_index_complete", "BM25索引构建完成", {
+                "doc_count": len(self.bm25_corpus),
+                "total_tokens": total_tokens,
+                "avg_tokens_per_doc": round(total_tokens / len(self.bm25_corpus), 2) if self.bm25_corpus else 0
+            })
+            
             logger.info(f"[Fusion RAG] BM25索引构建完成，文档数: {len(self.bm25_corpus)}")
             
         except Exception as e:
+            self._log("bm25_index_error", f"BM25索引构建失败: {str(e)}", {"error": str(e)})
             logger.error(f"[Fusion RAG] BM25索引构建失败: {e}")
             self.bm25 = None
     
@@ -68,11 +82,17 @@ class FusionRAG(BaseRAG):
         """
         try:
             if self.bm25 is None:
+                self._log("bm25_search_skip", "BM25索引未初始化，跳过BM25检索")
                 logger.warning("[Fusion RAG] BM25索引未初始化")
                 return []
             
             # 查询分词
             query_tokens = list(jieba.cut(query))
+            self._log("bm25_search_tokenize", "查询分词完成", {
+                "query": query[:50] + "..." if len(query) > 50 else query,
+                "tokens": query_tokens[:10],  # 只显示前10个token
+                "token_count": len(query_tokens)
+            })
             
             # BM25检索
             scores = self.bm25.get_scores(query_tokens)
@@ -87,10 +107,16 @@ class FusionRAG(BaseRAG):
                     doc["bm25_score"] = float(scores[idx])
                     results.append(doc)
             
+            self._log("bm25_search_complete", f"BM25检索完成", {
+                "result_count": len(results),
+                "top_scores": [round(doc["bm25_score"], 4) for doc in results[:3]]
+            })
+            
             logger.info(f"[Fusion RAG] BM25检索到 {len(results)} 个文档")
             return results
             
         except Exception as e:
+            self._log("bm25_search_error", f"BM25检索失败: {str(e)}", {"error": str(e)})
             logger.error(f"[Fusion RAG] BM25检索失败: {e}")
             return []
     
@@ -132,9 +158,21 @@ class FusionRAG(BaseRAG):
         Returns:
             融合后的结果
         """
+        self._log("fusion_start", "开始融合向量和BM25结果", {
+            "vector_count": len(vector_results),
+            "bm25_count": len(bm25_results),
+            "vector_weight": self.vector_weight,
+            "bm25_weight": self.bm25_weight
+        })
+        
         # 归一化分数
         vector_results = self._normalize_scores(vector_results, "score")
         bm25_results = self._normalize_scores(bm25_results, "bm25_score")
+        
+        self._log("fusion_normalize", "分数归一化完成", {
+            "vector_normalized": len(vector_results),
+            "bm25_normalized": len(bm25_results)
+        })
         
         # 创建文档ID到分数的映射
         fusion_scores = {}
@@ -151,12 +189,14 @@ class FusionRAG(BaseRAG):
             }
         
         # 添加BM25分数
+        overlap_count = 0
         for doc in bm25_results:
             chunk_id = doc["chunk_id"]
             bm25_score = doc.get("bm25_score_normalized", 0)
             
             if chunk_id in fusion_scores:
                 fusion_scores[chunk_id]["bm25_score"] = bm25_score
+                overlap_count += 1
             else:
                 fusion_scores[chunk_id] = {
                     "doc": doc,
@@ -164,6 +204,13 @@ class FusionRAG(BaseRAG):
                     "bm25_score": bm25_score,
                     "fusion_score": 0
                 }
+        
+        self._log("fusion_merge", "结果合并完成", {
+            "total_unique_docs": len(fusion_scores),
+            "overlap_docs": overlap_count,
+            "vector_only": len(vector_results) - overlap_count,
+            "bm25_only": len(bm25_results) - overlap_count
+        })
         
         # 计算融合分数
         for chunk_id, scores in fusion_scores.items():
@@ -186,6 +233,11 @@ class FusionRAG(BaseRAG):
         # 返回top_k
         final_docs = [item["doc"] for item in sorted_results[:top_k]]
         
+        self._log("fusion_complete", f"融合排序完成，返回top {top_k}文档", {
+            "final_count": len(final_docs),
+            "top_fusion_scores": [round(item["fusion_score"], 4) for item in sorted_results[:3]]
+        })
+        
         logger.info(f"[Fusion RAG] 融合完成，返回 {len(final_docs)} 个文档")
         return final_docs
     
@@ -202,18 +254,27 @@ class FusionRAG(BaseRAG):
         """
         try:
             # Step 1: 向量检索
+            self._log("vector_search_start", f"开始向量检索，top_k={top_k * 2}")
             vector_results = self.vector_store.similarity_search(
                 query=query,
                 top_k=top_k * 2  # 获取更多候选
             )
             
             if not vector_results:
+                self._log("vector_search_empty", "向量检索未找到文档")
                 logger.warning("[Fusion RAG] 向量检索未找到文档")
                 return []
+            
+            self._log("vector_search_complete", f"向量检索完成", {
+                "result_count": len(vector_results),
+                "top_scores": [round(r["score"], 4) for r in vector_results[:3]]
+            })
             
             # Step 2: 构建BM25索引（如果还没有）
             if self.bm25 is None:
                 self._build_bm25_index(vector_results)
+            else:
+                self._log("bm25_index_exists", "使用已存在的BM25索引")
             
             # Step 3: BM25检索
             bm25_results = self._bm25_search(query, top_k * 2)
@@ -222,8 +283,9 @@ class FusionRAG(BaseRAG):
             fused_docs = self._fusion_results(vector_results, bm25_results, top_k)
             
             # Step 5: 转换为RetrievedDoc对象
+            self._log("convert_docs_start", "转换为RetrievedDoc对象")
             retrieved_docs = []
-            for doc in fused_docs:
+            for idx, doc in enumerate(fused_docs):
                 retrieved_doc = RetrievedDoc(
                     chunk_id=doc["chunk_id"],
                     content=doc["content"],
@@ -238,11 +300,22 @@ class FusionRAG(BaseRAG):
                     }
                 )
                 retrieved_docs.append(retrieved_doc)
+                
+                # 记录前3个文档的详细信息
+                if idx < 3:
+                    self._log(f"fusion_doc_{idx+1}", f"融合文档 #{idx+1}", {
+                        "filename": doc.get("filename", "Unknown"),
+                        "fusion_score": round(doc.get("fusion_score", 0), 4),
+                        "vector_score": round(doc.get("vector_score_normalized", 0), 4),
+                        "bm25_score": round(doc.get("bm25_score_normalized", 0), 4),
+                        "content_length": len(doc["content"])
+                    })
             
             logger.info(f"[Fusion RAG] 检索完成，返回 {len(retrieved_docs)} 个文档")
             return retrieved_docs
             
         except Exception as e:
+            self._log("retrieve_error", f"检索失败: {str(e)}", {"error": str(e)})
             logger.error(f"[Fusion RAG] 检索失败: {e}")
             return []
     
@@ -250,19 +323,36 @@ class FusionRAG(BaseRAG):
         """生成答案"""
         try:
             if not retrieved_docs:
+                self._log("generate_no_docs", "没有检索到文档，返回默认回答")
                 return "抱歉，没有找到相关信息来回答您的问题。"
             
+            # 准备上下文
+            self._log("generate_prepare_context", "准备融合文档上下文", {
+                "doc_count": len(retrieved_docs),
+                "total_context_length": sum(len(doc.content) for doc in retrieved_docs),
+                "avg_fusion_score": round(sum(doc.score for doc in retrieved_docs) / len(retrieved_docs), 4)
+            })
+            
             context = [doc.content for doc in retrieved_docs]
+            
+            # 调用LLM
+            self._log("generate_llm_call", "调用LLM生成答案")
             answer = generate_rag_answer(
                 query=query,
                 context=context,
                 system_prompt=self.system_prompt
             )
             
+            self._log("generate_complete", "答案生成成功", {
+                "answer_length": len(answer),
+                "answer_preview": answer[:150] + "..." if len(answer) > 150 else answer
+            })
+            
             logger.info(f"[Fusion RAG] 成功生成答案，长度: {len(answer)} 字符")
             return answer
             
         except Exception as e:
+            self._log("generate_error", f"生成答案失败: {str(e)}", {"error": str(e)})
             logger.error(f"[Fusion RAG] 生成答案失败: {e}")
             return f"生成答案时出现错误: {str(e)}"
 

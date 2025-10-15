@@ -44,16 +44,29 @@ class HyDERAG(BaseRAG):
             假设文档内容
         """
         try:
+            self._log("hyde_prepare", "准备生成假设文档", {
+                "query": query[:50] + "..." if len(query) > 50 else query,
+                "query_length": len(query),
+                "temperature": 0.7,
+                "max_tokens": 500
+            })
+            
             prompt = self.hyde_prompt_template.format(query=query)
             messages = [
                 {"role": "user", "content": prompt}
             ]
             
+            self._log("hyde_llm_call", "调用LLM生成假设文档")
             hypothesis = call_llm(
                 messages=messages,
                 temperature=0.7,
                 max_tokens=500
             )
+            
+            self._log("hyde_generated", "假设文档生成完成", {
+                "hypothesis_length": len(hypothesis),
+                "hypothesis_preview": hypothesis[:150] + "..." if len(hypothesis) > 150 else hypothesis
+            })
             
             logger.info(f"[HyDE RAG] 生成假设文档，长度: {len(hypothesis)} 字符")
             logger.debug(f"[HyDE RAG] 假设文档内容: {hypothesis[:200]}...")
@@ -61,6 +74,7 @@ class HyDERAG(BaseRAG):
             return hypothesis
             
         except Exception as e:
+            self._log("hyde_generate_error", f"生成假设文档失败: {str(e)}", {"error": str(e)})
             logger.error(f"[HyDE RAG] 生成假设文档失败: {e}")
             # 失败时返回原始查询
             return query
@@ -81,16 +95,27 @@ class HyDERAG(BaseRAG):
             检索结果
         """
         try:
+            self._log("hyde_search_start", f"使用假设文档进行向量检索，top_k={top_k}", {
+                "hypothesis_length": len(hypothesis),
+                "top_k": top_k
+            })
+            
             # 使用假设文档作为查询
             results = self.vector_store.similarity_search(
                 query=hypothesis,
                 top_k=top_k
             )
             
+            self._log("hyde_search_complete", f"假设文档检索完成", {
+                "result_count": len(results),
+                "top_scores": [round(r["score"], 4) for r in results[:3]] if results else []
+            })
+            
             logger.info(f"[HyDE RAG] 使用假设文档检索到 {len(results)} 个文档")
             return results
             
         except Exception as e:
+            self._log("hyde_search_error", f"检索失败: {str(e)}", {"error": str(e)})
             logger.error(f"[HyDE RAG] 检索失败: {e}")
             return []
     
@@ -116,15 +141,18 @@ class HyDERAG(BaseRAG):
             else:
                 # 多个假设文档（可选功能）
                 # TODO: 实现多假设文档融合
+                self._log("hyde_multi_hypothesis", "使用多假设文档模式（当前未实现完整融合）")
                 search_results = self._search_with_hypothesis(hypothesis, top_k)
             
             if not search_results:
+                self._log("hyde_no_results", "未找到相关文档")
                 logger.warning("[HyDE RAG] 检索未找到文档")
                 return []
             
             # Step 3: 转换为RetrievedDoc对象
+            self._log("hyde_convert_docs", "转换检索结果为RetrievedDoc对象")
             retrieved_docs = []
-            for result in search_results:
+            for idx, result in enumerate(search_results):
                 doc = RetrievedDoc(
                     chunk_id=result["chunk_id"],
                     content=result["content"],
@@ -137,11 +165,21 @@ class HyDERAG(BaseRAG):
                     }
                 )
                 retrieved_docs.append(doc)
+                
+                # 记录前3个文档详情
+                if idx < 3:
+                    self._log(f"hyde_doc_{idx+1}", f"文档 #{idx+1}", {
+                        "filename": result.get("filename", "Unknown"),
+                        "score": round(result["score"], 4),
+                        "content_length": len(result["content"]),
+                        "content_preview": result["content"][:100] + "..."
+                    })
             
             logger.info(f"[HyDE RAG] 检索完成，返回 {len(retrieved_docs)} 个文档")
             return retrieved_docs
             
         except Exception as e:
+            self._log("retrieve_error", f"检索失败: {str(e)}", {"error": str(e)})
             logger.error(f"[HyDE RAG] 检索失败: {e}")
             return []
     
@@ -158,21 +196,35 @@ class HyDERAG(BaseRAG):
         """
         try:
             if not retrieved_docs:
+                self._log("generate_no_docs", "没有检索到文档，返回默认回答")
                 return "抱歉，没有找到相关信息来回答您的问题。"
             
             # 使用真实文档生成答案
+            self._log("generate_prepare_context", "准备上下文（使用真实文档，非假设文档）", {
+                "doc_count": len(retrieved_docs),
+                "total_context_length": sum(len(doc.content) for doc in retrieved_docs),
+                "using_original_query": True
+            })
+            
             context = [doc.content for doc in retrieved_docs]
             
+            self._log("generate_llm_call", "调用LLM生成最终答案（使用原始查询）")
             answer = generate_rag_answer(
                 query=query,  # 使用原始查询，不是假设文档
                 context=context,
                 system_prompt=self.system_prompt
             )
             
+            self._log("generate_complete", "答案生成成功", {
+                "answer_length": len(answer),
+                "answer_preview": answer[:150] + "..." if len(answer) > 150 else answer
+            })
+            
             logger.info(f"[HyDE RAG] 成功生成答案，长度: {len(answer)} 字符")
             return answer
             
         except Exception as e:
+            self._log("generate_error", f"生成答案失败: {str(e)}", {"error": str(e)})
             logger.error(f"[HyDE RAG] 生成答案失败: {e}")
             return f"生成答案时出现错误: {str(e)}"
 
