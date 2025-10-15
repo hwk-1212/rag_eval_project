@@ -14,10 +14,15 @@ API_BASE_URL = "http://localhost:8000/api/v1"
 def render_statistics_page():
     """
     统计分析页面布局：
-    - 对比表格
-    - 可视化图表
-    - 推荐Top RAG技术
-    - LLM生成分析报告
+    ┌──────────────────────────┐
+    │ 评估按钮                  │
+    ├──────────────┬───────────┤
+    │ 对比表格      │ 可视化    │
+    ├──────────────┴───────────┤
+    │ 推荐                      │
+    ├───────────────────────────┤
+    │ AI 分析报告               │
+    └───────────────────────────┘
     """
     
     if not st.session_state.rag_results:
@@ -26,12 +31,13 @@ def render_statistics_page():
     
     st.markdown("## 📈 统计分析与对比")
     
-    # 批量评估按钮
+    # ========== 1. 顶部：评估按钮 ==========
     eval_col1, eval_col2, eval_col3 = st.columns([3, 1, 1])
     
     with eval_col1:
-        if st.button("🚀 批量评估所有RAG技术", type="primary", use_container_width=True):
-            batch_evaluate_all()
+        if st.button("🚀 批量评估所有RAG技术", type="primary", use_container_width=True, key="batch_eval"):
+            with st.spinner("正在评估..."):
+                batch_evaluate_all()
     
     with eval_col2:
         eval_config = st.session_state.get("eval_config", {})
@@ -43,15 +49,16 @@ def render_statistics_page():
     
     st.markdown("---")
     
-    # ========== 1. 对比表格 ==========
-    st.markdown("### 📊 对比表格")
-    render_comparison_table()
+    # ========== 2. 中间：对比表格（左）+ 可视化（右）==========
+    col_table, col_viz = st.columns([5, 5])
     
-    st.markdown("---")
+    with col_table:
+        st.markdown("### 📊 对比表格")
+        render_comparison_table()
     
-    # ========== 2. 可视化图表 ==========
-    st.markdown("### 📉 可视化分析")
-    render_visualizations()
+    with col_viz:
+        st.markdown("### 📉 可视化分析")
+        render_visualizations()
     
     st.markdown("---")
     
@@ -61,21 +68,16 @@ def render_statistics_page():
     
     st.markdown("---")
     
-    # ========== 4. LLM生成分析报告 ==========
+    # ========== 4. AI分析报告 ==========
     st.markdown("### 📝 AI分析报告")
     render_ai_report()
 
 
 def batch_evaluate_all():
-    """批量评估所有RAG技术"""
+    """批量评估所有RAG技术（修复版）"""
     if not st.session_state.rag_results:
         st.warning("没有RAG结果可供评估")
         return
-    
-    progress_placeholder = st.empty()
-    status_placeholder = st.empty()
-    
-    progress_placeholder.progress(0, text="开始批量评估...")
     
     eval_config = st.session_state.get("eval_config", {})
     use_ragas = eval_config.get("use_ragas", False)
@@ -87,47 +89,60 @@ def batch_evaluate_all():
     
     total = len(st.session_state.rag_results)
     completed = 0
+    failed = 0
+    
+    # 显示评估信息
+    eval_info = st.empty()
+    eval_progress = st.empty()
+    
+    eval_info.info(f"🚀 开始批量评估 {total} 个RAG技术...")
     
     # 并发评估
-    with ThreadPoolExecutor(max_workers=concurrent_num) as executor:
-        future_to_index = {
-            executor.submit(
-                evaluate_single_rag,
-                i,
-                result,
-                use_ragas
-            ): i
-            for i, result in enumerate(st.session_state.rag_results)
-        }
+    try:
+        with ThreadPoolExecutor(max_workers=concurrent_num) as executor:
+            future_to_index = {
+                executor.submit(
+                    evaluate_single_rag,
+                    i,
+                    result,
+                    use_ragas
+                ): i
+                for i, result in enumerate(st.session_state.rag_results)
+            }
+            
+            for future in as_completed(future_to_index):
+                index = future_to_index[future]
+                try:
+                    eval_result = future.result()
+                    st.session_state.eval_results[index] = eval_result
+                    
+                    if eval_result.get("evaluation_success"):
+                        completed += 1
+                    else:
+                        failed += 1
+                    
+                    # 更新进度
+                    progress = (completed + failed) / total
+                    eval_progress.progress(progress, text=f"进度: {completed + failed}/{total}")
+                    
+                except Exception as e:
+                    failed += 1
+                    st.session_state.eval_results[index] = {
+                        "evaluation_success": False,
+                        "error": str(e)
+                    }
         
-        for future in as_completed(future_to_index):
-            index = future_to_index[future]
-            try:
-                eval_result = future.result()
-                st.session_state.eval_results[index] = eval_result
-                completed += 1
-                
-                progress = completed / total
-                progress_placeholder.progress(
-                    progress,
-                    text=f"评估进度: {completed}/{total} ({progress*100:.0f}%)"
-                )
-                
-                rag_name = st.session_state.rag_results[index]["rag_technique"]
-                if eval_result.get("evaluation_success"):
-                    status_placeholder.success(f"✅ {rag_name} 评估完成")
-                else:
-                    status_placeholder.warning(f"⚠️ {rag_name} 评估失败")
-                
-                time.sleep(0.2)
-                
-            except Exception as e:
-                st.error(f"评估失败: {str(e)}")
-    
-    progress_placeholder.empty()
-    status_placeholder.success(f"🎉 批量评估完成！共评估 {completed}/{total} 个RAG技术")
-    time.sleep(1)
-    st.rerun()
+        # 显示完成信息
+        eval_info.success(f"🎉 评估完成！成功: {completed}, 失败: {failed}")
+        eval_progress.empty()
+        
+        # 自动刷新页面显示结果
+        time.sleep(1)
+        st.rerun()
+        
+    except Exception as e:
+        eval_info.error(f"❌ 评估过程出错: {str(e)}")
+        eval_progress.empty()
 
 
 def evaluate_single_rag(index: int, result: dict, use_ragas: bool) -> dict:
