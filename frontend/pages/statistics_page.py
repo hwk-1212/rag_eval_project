@@ -7,6 +7,7 @@ import pandas as pd
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
+from loguru import logger
 
 API_BASE_URL = "http://localhost:8000/api/v1"
 
@@ -173,11 +174,60 @@ def evaluate_single_rag(index: int, result: dict, use_ragas: bool) -> dict:
         return {"evaluation_success": False, "error": str(e)}
 
 
+def load_evaluations_from_db():
+    """从数据库加载评估数据"""
+    if not st.session_state.rag_results:
+        return
+    
+    try:
+        # 为每个RAG结果加载数据库中的评估数据
+        for i, result in enumerate(st.session_state.rag_results):
+            qa_record_id = result.get("qa_record_id")
+            if not qa_record_id:
+                continue
+            
+            # 调用API获取评估数据
+            response = requests.get(
+                f"{st.session_state.api_base_url}/evaluations/qa_record/{qa_record_id}",
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                evaluations = response.json()
+                if evaluations:
+                    # 获取最新的auto类型评估
+                    auto_evals = [e for e in evaluations if e.get("score_type") == "auto"]
+                    if auto_evals:
+                        latest_eval = auto_evals[-1]  # 最新的评估
+                        
+                        # 构造eval_result格式
+                        if "eval_results" not in st.session_state:
+                            st.session_state.eval_results = {}
+                        
+                        st.session_state.eval_results[i] = {
+                            "evaluation_success": True,
+                            "llm_evaluation": {
+                                "overall_score": latest_eval.get("overall_score", 0),
+                                "relevance_score": latest_eval.get("relevance_score", 0),
+                                "faithfulness_score": latest_eval.get("faithfulness_score", 0),
+                                "coherence_score": latest_eval.get("coherence_score", 0),
+                                "fluency_score": latest_eval.get("fluency_score", 0),
+                                "conciseness_score": latest_eval.get("conciseness_score", 0),
+                            }
+                        }
+    except Exception as e:
+        logger.warning(f"从数据库加载评估数据失败: {e}")
+
+
 def render_comparison_table():
     """渲染对比表格"""
     if not st.session_state.rag_results:
         st.caption("暂无数据")
         return
+    
+    # 尝试从数据库加载评估数据（如果session_state中没有）
+    if "eval_results" not in st.session_state or not st.session_state.eval_results:
+        load_evaluations_from_db()
     
     # 构建表格数据
     table_data = []
@@ -239,6 +289,10 @@ def render_visualizations():
         st.caption("暂无数据")
         return
     
+    # 尝试从数据库加载评估数据（如果session_state中没有）
+    if "eval_results" not in st.session_state or not st.session_state.eval_results:
+        load_evaluations_from_db()
+    
     # 准备数据
     techniques = [r["rag_technique"] for r in st.session_state.rag_results]
     exec_times = [r["execution_time"] for r in st.session_state.rag_results]
@@ -297,6 +351,10 @@ def render_visualizations():
 
 def render_recommendations():
     """渲染推荐"""
+    # 尝试从数据库加载评估数据（如果session_state中没有）
+    if "eval_results" not in st.session_state or not st.session_state.eval_results:
+        load_evaluations_from_db()
+    
     if "eval_results" not in st.session_state or not st.session_state.eval_results:
         st.info("💡 请先进行批量评估以获取推荐")
         return
