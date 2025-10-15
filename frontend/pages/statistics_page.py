@@ -240,6 +240,8 @@ def render_comparison_table():
             "相关性": "-",
             "忠实度": "-",
             "连贯性": "-",
+            "流畅性": "-",
+            "简洁性": "-",
             "Ragas忠实度": "-",
             "Ragas相关性": "-"
         }
@@ -255,6 +257,8 @@ def render_comparison_table():
                 row["相关性"] = f"{llm_eval.get('relevance_score', 0):.1f}"
                 row["忠实度"] = f"{llm_eval.get('faithfulness_score', 0):.1f}"
                 row["连贯性"] = f"{llm_eval.get('coherence_score', 0):.1f}"
+                row["流畅性"] = f"{llm_eval.get('fluency_score', 0):.1f}"
+                row["简洁性"] = f"{llm_eval.get('conciseness_score', 0):.1f}"
                 
                 if eval_result.get("ragas_evaluation"):
                     ragas_eval = eval_result["ragas_evaluation"]
